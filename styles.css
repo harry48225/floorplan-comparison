@@ -280,6 +280,17 @@ input[type="range"] {
   cursor: pointer;
 }
 #save-lib-row input { pointer-events: auto; cursor: pointer; }
+#save-lib-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+#save-lib-note a {
+  pointer-events: auto;
+  color: var(--accent);
+  font-weight: 600;
+}
 
 #confirm-row {
   display: flex;
@@ -389,7 +400,8 @@ input[type="range"] {
 /* During the confirm step the canvas pans, so use a grab cursor instead. */
 .stage.measuring.confirming,
 .stage.measuring.confirming * { cursor: grab !important; }
-.stage.measuring #guide button { cursor: pointer !important; }
+.stage.measuring #guide button,
+.stage.measuring #guide a { cursor: pointer !important; }
 .calib line { stroke: var(--accent); stroke-width: 2.5; }
 .calib circle { fill: var(--accent); }
 .calib marker path { fill: var(--accent); }
@@ -409,11 +421,14 @@ input[type="range"] {
   left: 50%;
   bottom: 18px;
   transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
   background: var(--text);
   color: #fff;
-  padding: 8px 14px;
-  border-radius: 999px;
+  padding: 8px 16px;
+  border-radius: 16px;
   font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
   z-index: 6;
   box-shadow: var(--shadow);
   pointer-events: none;

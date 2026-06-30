@@ -63,6 +63,7 @@
   const confirmRow = document.getElementById("confirm-row");
   const saveLibRow = document.getElementById("save-lib-row");
   const saveLibCheck = document.getElementById("save-lib");
+  const saveLibNote = document.getElementById("save-lib-note");
   const guideAddRow = document.getElementById("guide-add-row");
   const guideFileBtn = document.getElementById("guide-file");
   const guideLibBtn = document.getElementById("guide-library");
@@ -233,6 +234,8 @@
     url = url.trim();
     if (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(url)) {
       const p = addPlan({ save: false });
+      p.fromUrl = true; // can't be saved to the library (no readable Blob)
+      p.url = url;
       setImageSrc(p, url, null, null);
       showHint("Loading image…", 1500);
       return;
@@ -364,7 +367,19 @@
 
     guide.classList.toggle("hidden", !show);
     confirmRow.classList.toggle("hidden", !confirm);
-    saveLibRow.classList.toggle("hidden", !(confirm && canSave(calibPending.plan)));
+    // In the confirm step: show the save checkbox if savable, else (for a
+    // URL-loaded plan that can't be saved) explain why.
+    const showSave = confirm && canSave(calibPending.plan);
+    const showNote = confirm && !canSave(calibPending.plan) && calibPending.plan.fromUrl;
+    saveLibRow.classList.toggle("hidden", !showSave);
+    saveLibNote.classList.toggle("hidden", !showNote);
+    if (showNote) {
+      const u = escapeHtml(calibPending.plan.url || "");
+      saveLibNote.innerHTML =
+        `Loaded from a URL, so it can't be saved directly. ` +
+        `<a href="${u}" target="_blank" rel="noopener">Open the image</a>, right-click → ` +
+        `Copy image, then come back and paste it here to save it to your library.`;
+    }
     guideAddRow.classList.toggle("hidden", !adding);
     guideTitle.textContent = title;
     guideBody.textContent = body;
