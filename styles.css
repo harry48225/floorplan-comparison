@@ -1,0 +1,558 @@
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --line: #e2e4e9;
+  --text: #1c2024;
+  --muted: #6b7280;
+  --accent: #2f6df6;
+  --accent-soft: #e7eefe;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .1);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---- Toolbar ---- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  z-index: 5;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: .2px;
+}
+
+.lbl, .group > label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tip {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Buttons */
+button {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+  user-select: none;
+}
+
+button:hover { background: #f7f8fa; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+input[type="range"] {
+  width: 130px;
+  accent-color: var(--accent);
+}
+
+/* ---- Stage ---- */
+.stage {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  background:
+    linear-gradient(45deg, #eceef1 25%, transparent 25%) -10px 0,
+    linear-gradient(-45deg, #eceef1 25%, transparent 25%) -10px 0,
+    linear-gradient(45deg, transparent 75%, #eceef1 75%),
+    linear-gradient(-45deg, transparent 75%, #eceef1 75%);
+  background-size: 20px 20px;
+  background-color: #f8f9fb;
+}
+
+/* Plan layers — one per plan, interleaved img + per-plan area svg, back-to-
+   front. Containers are click-through; only the images and box shapes are hit
+   targets, so an upper layer doesn't swallow clicks meant for a lower one. */
+#layers { position: absolute; inset: 0; pointer-events: none; }
+.layer { position: absolute; inset: 0; pointer-events: none; }
+
+/* Per-plan opacity card (opacity slider + remove button). */
+#cards { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.card {
+  position: absolute;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, .92);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  pointer-events: none; /* children opt back in */
+}
+.card.show { display: flex; }
+.card-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+}
+.card-recal,
+.card-show {
+  pointer-events: auto;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.card-del {
+  pointer-events: auto;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
+  color: #e5484d;
+}
+.card-save {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #92560c;
+  border-color: #e0a458;
+  background: #fff7ed;
+}
+.card-save:hover { background: #ffedd5; }
+.card-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e2860d;
+}
+/* Plan selection UI: dashed border + rotate handle, above the plans. */
+#plan-ui {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 3;
+  pointer-events: none;
+}
+.plan-border {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 5;
+  pointer-events: none;
+}
+/* Floating toolbars on the canvas */
+.tools-toolbar {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+}
+.tools-toolbar button { box-shadow: var(--shadow); }
+
+.library-fab {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  box-shadow: var(--shadow);
+}
+
+.zoom-toolbar {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zoom-toolbar button {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.card-opacity {
+  width: 64px;
+  pointer-events: auto;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* Plan images */
+.layer img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: auto; /* the image is draggable / occludes boxes below */
+}
+.stage.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
+
+/* Guided onboarding message */
+.guide {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 420px;
+  padding: 14px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: center;
+  pointer-events: none;
+}
+.guide-title { margin: 0 0 4px; font-weight: 650; font-size: 15px; }
+.guide-body { margin: 0; color: var(--muted); }
+#guide-add-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+#guide-add-row button { pointer-events: auto; }
+#guide-file {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+#guide-file:hover { background: #235ad6; }
+
+#save-lib-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  pointer-events: auto;
+  cursor: pointer;
+}
+#save-lib-row input { pointer-events: auto; cursor: pointer; }
+
+#confirm-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+#confirm-row button { pointer-events: auto; }
+#confirm-yes {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+#confirm-yes:hover { background: #235ad6; }
+
+/* Area-measuring overlays. Each box (outline, labels, handles, delete) renders
+   on its own plan's layer, just above that plan's image, so the plan on top
+   occludes it both visually and for clicks. The top layer only shows the live
+   drawing preview and captures clicks while the tool is active. */
+.area-plan,
+.area-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.area-layer { z-index: 2; }
+.area-layer.active { pointer-events: auto; cursor: crosshair; }
+
+.area-plan polygon,
+.area-layer polygon {
+  fill: rgba(47, 109, 246, .12);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+.area-plan polygon { pointer-events: all; cursor: move; } /* box is clickable */
+.area-layer polygon { pointer-events: none; } /* preview only */
+
+.area-plan text,
+.area-layer text {
+  fill: var(--text);
+  font: 650 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.area-plan text.area,
+.area-layer text.area { font-size: 14px; fill: var(--accent); }
+
+.handle {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  pointer-events: all;
+}
+.del {
+  fill: #fff;
+  stroke: #e5484d;
+  stroke-width: 1.5;
+  cursor: pointer;
+  pointer-events: all;
+}
+.rot {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  cursor: grab;
+  pointer-events: all;
+}
+.rot:active { cursor: grabbing; }
+.rot-stem {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  pointer-events: none;
+}
+.del-x {
+  stroke: #e5484d;
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+#area-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Calibration overlay */
+.calib {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  cursor: crosshair;
+}
+/* Read-only display of a stored calibration line (not measuring). */
+.calib.readonly { pointer-events: none; cursor: default; }
+.stage.measuring,
+.stage.measuring * { cursor: crosshair !important; }
+/* During the confirm step the canvas pans, so use a grab cursor instead. */
+.stage.measuring.confirming,
+.stage.measuring.confirming * { cursor: grab !important; }
+.stage.measuring #guide button { cursor: pointer !important; }
+.calib line { stroke: var(--accent); stroke-width: 2.5; }
+.calib circle { fill: var(--accent); }
+.calib marker path { fill: var(--accent); }
+.calib-label {
+  fill: var(--accent);
+  font: 700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  z-index: 6;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+/* Help popover + bookmarklet */
+.help-pop {
+  position: absolute;
+  top: 56px;
+  right: 16px;
+  z-index: 10;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
+  padding: 14px 16px;
+}
+.help-title { margin: 0 0 8px; font-weight: 650; }
+.help-pop ol { margin: 0; padding-left: 18px; color: var(--muted); }
+.help-pop li { margin: 8px 0; }
+
+.bm {
+  display: inline-block;
+  margin: 4px 6px 0 0;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: grab;
+}
+.mini {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+kbd {
+  font: inherit;
+  background: #f1f2f5;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+
+/* Library panel */
+.library {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  z-index: 11;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, .16);
+  overflow: hidden;
+}
+.library-head,
+.library-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.library-foot { border-bottom: none; border-top: 1px solid var(--line); }
+.library-head strong { margin-right: auto; }
+.library-foot #lib-usage { margin-right: auto; color: var(--muted); font-size: 13px; }
+
+.lib-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 12px;
+  overflow-y: auto;
+}
+.lib-empty { grid-column: 1 / -1; margin: 12px 4px; color: var(--muted); }
+.lib-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lib-thumb {
+  width: 100%;
+  height: 90px;
+  object-fit: contain;
+  background: #f1f2f5;
+  border-radius: 5px;
+}
+.lib-thumb-blank { display: block; }
+.lib-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-actions { display: flex; gap: 4px; }
+.lib-actions button { padding: 3px 7px; font-size: 12px; border-radius: 6px; }
+
+/* About modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 24, 40, .45);
+}
+.modal-card {
+  position: relative;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 22px 26px;
+  box-shadow: 0 14px 44px rgba(16, 24, 40, .3);
+}
+.modal-card h2 { margin: 0 0 12px; font-size: 18px; }
+.modal-card p { margin: 0 0 10px; line-height: 1.5; }
+.modal-card p:last-child { margin-bottom: 0; }
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 8px;
+}
+
+.hidden { display: none !important; }

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Floor Plan Overlay</title>
+  <meta name="description" content="Overlay and compare property floor plans at a matched real-world scale, and measure room areas — all in your browser, with nothing uploaded." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <span class="brand">Floor&nbsp;Plan&nbsp;Overlay</span>
+
+    <div class="group">
+      <button id="add-plan" type="button">Add plan</button>
+      <button id="help-btn" type="button">Rightmove floorplan finder bookmarklet ▾</button>
+      <button id="about-btn" type="button">About</button>
+      <input type="file" id="add-plan-input" accept="image/*" multiple hidden />
+    </div>
+
+    <span class="tip">Drag/scroll the plan under your cursor</span>
+  </header>
+
+  <div id="help" class="help-pop hidden">
+    <p class="help-title">Grab a floorplan from Rightmove / Zoopla</p>
+    <ol>
+      <li>
+        Drag this to your bookmarks bar (one time):
+        <a id="bm" class="bm">📐 Grab Floorplan</a>
+        <button id="bm-copy" type="button" class="mini">copy code</button>
+      </li>
+      <li>Open a property page, then click the bookmark — it copies the floorplan URL.</li>
+      <li>Come back here and press <kbd>⌘V</kbd> / <kbd>Ctrl&nbsp;V</kbd> to load it.</li>
+    </ol>
+  </div>
+
+  <main id="stage" class="stage">
+    <!-- Plan layers (img + per-plan area svg) are created dynamically here. -->
+    <div id="layers"></div>
+
+    <button id="library-btn" class="library-fab" type="button">Library</button>
+
+    <div class="tools-toolbar">
+      <button id="area-btn" type="button">Measure area</button>
+    </div>
+
+    <div class="zoom-toolbar">
+      <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+      <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+    </div>
+
+    <div id="guide" class="guide">
+      <p class="guide-title"></p>
+      <p class="guide-body"></p>
+      <div id="guide-add-row" class="hidden">
+        <button id="guide-file" type="button">Choose file…</button>
+        <button id="guide-library" type="button">Open library</button>
+      </div>
+      <label id="save-lib-row" class="hidden">
+        <input type="checkbox" id="save-lib" checked /> Save to library
+      </label>
+      <div id="confirm-row" class="hidden">
+        <button id="confirm-yes" type="button">Confirm</button>
+        <button id="confirm-redo" type="button">Redo</button>
+      </div>
+    </div>
+
+    <svg id="area-layer" class="area-layer"></svg>
+    <svg id="plan-ui"></svg>
+    <div id="cards"></div>
+    <svg id="calib-layer" class="calib hidden"></svg>
+    <div id="hint" class="hint hidden"></div>
+  </main>
+
+  <div id="library" class="library hidden">
+    <div class="library-head">
+      <strong>My plans</strong>
+      <button id="lib-save" type="button">Save current plan</button>
+      <button id="lib-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="lib-grid" class="lib-grid"></div>
+    <div class="library-foot">
+      <span id="lib-usage"></span>
+    </div>
+  </div>
+
+  <div id="about" class="modal hidden">
+    <div class="modal-card">
+      <button id="about-close" class="modal-close" type="button" aria-label="Close">✕</button>
+      <h2>About</h2>
+      <p>Floor Plan Overlay lets you compare property floor plans at a matched real-world scale.</p>
+      <p><strong>This is a vibe-coded project</strong> — built quickly and iteratively with an AI
+        assistant. Expect rough edges; there are no guarantees of accuracy.</p>
+      <p><strong>Your data stays on your device.</strong> The floor plans you add, and anything you
+        save to your library, are stored only in this browser (IndexedDB) — nothing is ever
+        uploaded to a server.</p>
+    </div>
+  </div>
+
+  <script src="storage.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
