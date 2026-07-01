@@ -183,7 +183,7 @@ input[type="range"] {
 /* Floating toolbars on the canvas */
 .tools-toolbar {
   position: absolute;
-  left: 16px;
+  right: 16px;
   top: 16px;
   z-index: 5;
   display: flex;
@@ -191,13 +191,8 @@ input[type="range"] {
 }
 .tools-toolbar button { box-shadow: var(--shadow); }
 
-.library-fab {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 5;
-  box-shadow: var(--shadow);
-}
+/* Library button now lives in the right-hand tools toolbar (in flow). */
+.library-fab { box-shadow: var(--shadow); }
 
 .zoom-toolbar {
   position: absolute;
@@ -345,6 +340,29 @@ input[type="range"] {
 .area-plan text.area,
 .area-layer text.area { font-size: 14px; fill: var(--accent); }
 
+/* Furniture pieces: warmer fill + top-down schematic + name/dimension labels. */
+.area-plan polygon.furn,
+.area-layer polygon.furn {
+  fill: rgba(20, 140, 110, .12);
+  stroke: #128a6e;
+}
+.furn-icon,
+.furn-ic {
+  fill: none;
+  stroke: #0f7a62;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.furn-icon { pointer-events: none; }
+/* vector-effect isn't inherited, so it must sit on the shapes themselves. */
+.furn-icon *,
+.furn-ic * { vector-effect: non-scaling-stroke; }
+.area-plan text.furn-name,
+.area-layer text.furn-name { fill: #0f6b56; }
+.area-plan text.furn-dim,
+.area-layer text.furn-dim { font-size: 11px; fill: var(--muted); }
+
 .handle {
   fill: #fff;
   stroke: var(--accent);
@@ -378,11 +396,16 @@ input[type="range"] {
   pointer-events: none;
 }
 
-#area-btn.active {
+#area-btn.active,
+#furniture-btn.active,
+#library-btn.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
 }
+
+/* While placing a furniture piece, the canvas is a drop target. */
+.stage.placing { cursor: crosshair; }
 
 /* Calibration overlay */
 .calib {
@@ -540,6 +563,62 @@ kbd {
 }
 .lib-actions { display: flex; gap: 4px; }
 .lib-actions button { padding: 3px 7px; font-size: 12px; border-radius: 6px; }
+
+/* Furniture palette — same placement/behaviour as the Library panel. */
+.furniture {
+  position: absolute;
+  top: 64px;
+  right: 16px;
+  z-index: 11;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 96px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, .16);
+  overflow: hidden;
+}
+.furniture-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.furniture-head strong { margin-right: auto; }
+.furn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+}
+.furn-cat {
+  grid-column: 1 / -1;
+  margin: 4px 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.furn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 6px;
+  text-align: center;
+}
+.furn-ic {
+  width: 40px;
+  height: 40px;
+}
+.furn-item-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
+.furn-item-dim { font-size: 11px; color: var(--muted); }
 
 /* About modal */
 .modal {

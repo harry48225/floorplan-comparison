@@ -39,10 +39,10 @@
     <!-- Plan layers (img + per-plan area svg) are created dynamically here. -->
     <div id="layers"></div>
 
-    <button id="library-btn" class="library-fab" type="button">Library</button>
-
     <div class="tools-toolbar">
       <button id="area-btn" type="button">Measure area</button>
+      <button id="furniture-btn" type="button">Furniture</button>
+      <button id="library-btn" class="library-fab" type="button">Library</button>
     </div>
 
     <div class="zoom-toolbar">
@@ -77,6 +77,14 @@
     <div id="hint" class="hint hidden"></div>
   </main>
 
+  <div id="furniture" class="furniture hidden">
+    <div class="furniture-head">
+      <strong>Furniture</strong>
+      <button id="furn-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <div id="furn-grid" class="furn-grid"></div>
+  </div>
+
   <div id="library" class="library hidden">
     <div class="library-head">
       <strong>My plans</strong>
@@ -106,6 +114,7 @@
   </div>
 
   <script src="storage.js"></script>
+  <script src="furniture.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

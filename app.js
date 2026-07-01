@@ -24,6 +24,7 @@
   let areaRotate = null; // { index }
   let selected = null; // index into areas[] of the box in edit mode, or null
   const areas = [];
+  let furnPlacing = null; // { item, sx, sy } while placing a furniture piece
 
   // Local→plan offsets for the 8 resize handles (and their resize cursors).
   const RESIZE_HANDLES = [
@@ -56,6 +57,9 @@
   const planUiSvg = document.getElementById("plan-ui");
   const calibSvg = document.getElementById("calib-layer");
   const areaBtn = document.getElementById("area-btn");
+  const furnitureBtn = document.getElementById("furniture-btn");
+  const furniturePanel = document.getElementById("furniture");
+  const furnGrid = document.getElementById("furn-grid");
   const hint = document.getElementById("hint");
   const guide = document.getElementById("guide");
   const guideTitle = guide.querySelector(".guide-title");
@@ -282,6 +286,7 @@
   // ---- Rendering ----
   function render() {
     stage.classList.toggle("confirming", !!calibPending);
+    stage.classList.toggle("placing", !!furnPlacing);
 
     plans.forEach((p) => {
       if (!p.loaded) return;
@@ -422,6 +427,11 @@
       e.target.closest(".library-fab")
     )
       return;
+    if (furnPlacing) {
+      const r = stage.getBoundingClientRect();
+      placeFurnitureAt(e.clientX - r.left, e.clientY - r.top);
+      return;
+    }
     if (calibPending) {
       startDrag(e, { kind: "view" }); // while confirming, dragging pans the view
       return;
@@ -432,6 +442,15 @@
     addingPlan = false; // clicking the canvas dismisses the add prompt
     render();
     startDrag(e, p ? { kind: "plan", plan: p } : { kind: "view" });
+  });
+
+  // Furniture placement ghost: track the cursor over the canvas and redraw.
+  stage.addEventListener("pointermove", (e) => {
+    if (!furnPlacing) return;
+    const r = stage.getBoundingClientRect();
+    furnPlacing.sx = e.clientX - r.left;
+    furnPlacing.sy = e.clientY - r.top;
+    render();
   });
 
   stage.addEventListener("pointermove", (e) => {
@@ -459,6 +478,14 @@
   };
   stage.addEventListener("pointerup", endDrag);
   stage.addEventListener("pointercancel", endDrag);
+
+  // Releasing a piece dragged from the palette over the canvas drops it here.
+  // (Click-to-place drops on pointerdown, which has already cleared furnPlacing.)
+  stage.addEventListener("pointerup", (e) => {
+    if (!furnPlacing) return;
+    const r = stage.getBoundingClientRect();
+    placeFurnitureAt(e.clientX - r.left, e.clientY - r.top);
+  });
 
   stage.addEventListener(
     "wheel",
@@ -497,12 +524,37 @@
   function boxPolygonSVG(a, k) {
     const c = boxCorners(a);
     const di = k == null ? "" : ` data-i="${k}"`;
-    return `<polygon class="abox"${di} points="${c.map((q) => `${q.x},${q.y}`).join(" ")}"></polygon>`;
+    const cls = a.kind === "furniture" ? "abox furn" : "abox";
+    return `<polygon class="${cls}"${di} points="${c.map((q) => `${q.x},${q.y}`).join(" ")}"></polygon>`;
   }
-  function boxLabelsSVG(a) {
+  // A furniture piece's schematic, affine-mapped from its unit-box icon onto the
+  // placed rectangle (so it scales/rotates with the piece). Not interactive.
+  function boxIconSVG(a) {
+    const icon = window.Furniture && Furniture.ICONS[a.icon];
+    if (!icon) return "";
+    const c = boxCorners(a); // [tl, tr, br, bl] for local (-1,-1),(1,-1),(1,1),(-1,1)
+    const A = c[1].x - c[0].x;
+    const B = c[1].y - c[0].y;
+    const C = c[3].x - c[0].x;
+    const D = c[3].y - c[0].y;
+    return `<g class="furn-icon" transform="matrix(${A} ${B} ${C} ${D} ${c[0].x} ${c[0].y})">${icon}</g>`;
+  }
+  // Area boxes show width/height + m². Furniture shows its name, plus its real
+  // dimensions while selected/being moved (showDims).
+  function boxLabelsSVG(a, showDims) {
     const upp = a.plan.unitsPerPx;
-    const c = boxCorners(a);
     const ctr = planToScreen(a.plan, a.cx, a.cy);
+    if (a.kind === "furniture") {
+      // Labels only while selected/placed — the schematic identifies it otherwise.
+      if (!showDims) return "";
+      // Stack both upright in screen space (name, then dimensions just below) so
+      // they don't rotate with the piece or overlap each other at any angle.
+      return (
+        `<text x="${ctr.x}" y="${ctr.y}" class="furn-name">${escapeHtml(a.label)}</text>` +
+        `<text x="${ctr.x}" y="${ctr.y + 16}" class="furn-dim">${(a.w * upp).toFixed(2)} × ${(a.h * upp).toFixed(2)} m</text>`
+      );
+    }
+    const c = boxCorners(a);
     const mid = (u, v) => ({ x: (u.x + v.x) / 2, y: (u.y + v.y) / 2 });
     const w = mid(c[0], c[1]);
     const h = mid(c[0], c[3]);
@@ -517,10 +569,13 @@
   function boxHandlesSVG(a, k) {
     const hs = 4.5;
     let s = "";
-    for (const hd of RESIZE_HANDLES) {
-      const pt = boxPoint(a, hd.sx, hd.sy);
-      const c = planToScreen(a.plan, pt.nx, pt.ny);
-      s += `<rect class="handle" data-i="${k}" data-sx="${hd.sx}" data-sy="${hd.sy}" x="${c.x - hs}" y="${c.y - hs}" width="${2 * hs}" height="${2 * hs}" style="cursor:${hd.cursor}"></rect>`;
+    // Furniture is locked to its real size — rotate/delete only, no resize.
+    if (a.kind !== "furniture") {
+      for (const hd of RESIZE_HANDLES) {
+        const pt = boxPoint(a, hd.sx, hd.sy);
+        const c = planToScreen(a.plan, pt.nx, pt.ny);
+        s += `<rect class="handle" data-i="${k}" data-sx="${hd.sx}" data-sy="${hd.sy}" x="${c.x - hs}" y="${c.y - hs}" width="${2 * hs}" height="${2 * hs}" style="cursor:${hd.cursor}"></rect>`;
+      }
     }
     const ctr = planToScreen(a.plan, a.cx, a.cy);
     const outward = (pt, dist) => {
@@ -554,9 +609,11 @@
 
     areas.forEach((a, k) => {
       if (!a.plan.loaded || a.plan.unitsPerPx == null) return;
+      const sel = k === selected && !areaDraw;
       let s = boxPolygonSVG(a, k);
-      if (k === selected && !areaDraw) s += boxHandlesSVG(a, k);
-      s += boxLabelsSVG(a);
+      if (a.kind === "furniture") s += boxIconSVG(a);
+      if (sel) s += boxHandlesSVG(a, k);
+      s += boxLabelsSVG(a, sel);
       if (a === activeBox) top += s; // lift the dragged box above everything
       else byPlan.set(a.plan, byPlan.get(a.plan) + s);
     });
@@ -569,11 +626,14 @@
       const a = drawingBox();
       if (a.plan.loaded && a.plan.unitsPerPx != null) top += boxPolygonSVG(a, null) + boxLabelsSVG(a);
     }
+    const ghost = furnGhostBox();
+    if (ghost) top += boxPolygonSVG(ghost, null) + boxIconSVG(ghost) + boxLabelsSVG(ghost, true);
     areaSvg.innerHTML = top;
   }
 
   function drawingBox() {
     return {
+      kind: "area",
       plan: areaDraw.plan,
       cx: (areaDraw.x1 + areaCursor.nx) / 2,
       cy: (areaDraw.y1 + areaCursor.ny) / 2,
@@ -617,13 +677,122 @@
     areaTool = on;
     areaDraw = null;
     areaCursor = null;
-    if (on) selected = null;
+    if (on) {
+      selected = null;
+      furnPlacing = null; // don't leave a furniture ghost armed under the area tool
+    }
     areaBtn.classList.toggle("active", on);
     areaSvg.classList.toggle("active", on);
     if (on) showHint("Click two corners to measure a room.", 3200);
     else hideHint();
     render();
   }
+
+  // ---- Furniture: place a real-world-sized piece from the catalogue. ----
+  // A furniture item is an area box with kind:"furniture" — it reuses the same
+  // move/rotate/re-anchor machinery, but at a fixed real size and locked to it.
+  // Picking one arms placement (furnPlacing): a ghost follows the cursor and the
+  // next canvas click drops it. Esc cancels.
+  function furnitureBox(item, p, nx, ny) {
+    return {
+      kind: "furniture",
+      label: item.name,
+      icon: item.icon,
+      plan: p,
+      cx: nx,
+      cy: ny,
+      w: item.w / p.unitsPerPx,
+      h: item.h / p.unitsPerPx,
+      angle: -p.rotation, // sit axis-aligned regardless of the plan's rotation
+    };
+  }
+
+  function armFurniture(item) {
+    if (!plans.some((p) => p.loaded && p.unitsPerPx != null)) {
+      showHint("Calibrate a plan first, then add furniture.", 3200);
+      return;
+    }
+    if (areaTool) setAreaTool(false);
+    furnPlacing = { item, sx: null, sy: null };
+    selected = null;
+    selectedPlan = null;
+    showHint(`Click or drag onto the plan to place the ${item.name}. Esc to cancel.`, 5000);
+    render();
+  }
+
+  // The furniture ghost for the current cursor position, or null if off-plan.
+  function furnGhostBox() {
+    if (!furnPlacing || furnPlacing.sx == null) return null;
+    const p = pickAreaPlan(furnPlacing.sx, furnPlacing.sy);
+    if (!p) return null;
+    const loc = screenToPlan(p, furnPlacing.sx, furnPlacing.sy);
+    return furnitureBox(furnPlacing.item, p, loc.nx, loc.ny);
+  }
+
+  function placeFurnitureAt(sx, sy) {
+    const item = furnPlacing.item;
+    const p = pickAreaPlan(sx, sy);
+    furnPlacing = null;
+    if (!p) {
+      showHint("Calibrate a plan first, then add furniture.", 3200);
+      render();
+      return;
+    }
+    const loc = screenToPlan(p, sx, sy);
+    areas.push(furnitureBox(item, p, loc.nx, loc.ny));
+    selected = areas.length - 1;
+    selectedPlan = null;
+    showHint(`Placed ${item.name}. Drag to move, use the knob to rotate.`, 2600);
+    render();
+  }
+
+  function buildFurniturePalette() {
+    furnGrid.innerHTML = Furniture.CATALOG.map(
+      (group) =>
+        `<div class="furn-cat">${escapeHtml(group.category)}</div>` +
+        group.items
+          .map(
+            (it) =>
+              `<button class="furn-item" type="button" data-id="${it.id}">` +
+              `<svg class="furn-ic" viewBox="0 0 1 1" aria-hidden="true">${Furniture.ICONS[it.icon] || ""}</svg>` +
+              `<span class="furn-item-name">${escapeHtml(it.name)}</span>` +
+              `<span class="furn-item-dim">${it.w.toFixed(2)} × ${it.h.toFixed(2)} m</span>` +
+              `</button>`
+          )
+          .join("")
+    ).join("");
+  }
+
+  const furnById = {};
+  Furniture.CATALOG.forEach((g) => g.items.forEach((it) => (furnById[it.id] = it)));
+
+  // Arm a piece from the palette. pointerdown enables press-and-drag straight onto
+  // the canvas (the armed ghost follows the cursor, drops on release); click keeps
+  // the click-to-arm-then-click-to-place flow (and keyboard activation).
+  function armFromEvent(e) {
+    const btn = e.target.closest(".furn-item");
+    if (!btn) return;
+    const item = furnById[btn.dataset.id];
+    if (item) armFurniture(item);
+  }
+  furnGrid.addEventListener("pointerdown", armFromEvent);
+  furnGrid.addEventListener("click", armFromEvent);
+
+  function openFurniture() {
+    if (!furnGrid.childElementCount) buildFurniturePalette();
+    closeLibrary(); // the two right-hand panels are mutually exclusive
+    furniturePanel.classList.remove("hidden");
+    furnitureBtn.classList.add("active");
+  }
+  function closeFurniture() {
+    furniturePanel.classList.add("hidden");
+    furnitureBtn.classList.remove("active");
+  }
+  furnitureBtn.addEventListener("click", () => {
+    if (furniturePanel.classList.contains("hidden")) openFurniture();
+    else closeFurniture();
+  });
+  document.getElementById("furn-close").addEventListener("click", closeFurniture);
 
   // Drawing a new box: the top layer captures clicks while the tool is on.
   areaSvg.addEventListener("pointerdown", (e) => {
@@ -1207,13 +1376,19 @@
   });
 
   function openLibrary() {
+    closeFurniture(); // the two right-hand panels are mutually exclusive
     libraryPanel.classList.remove("hidden");
+    libraryBtn.classList.add("active");
     refreshLibrary();
     ensurePersist();
   }
+  function closeLibrary() {
+    libraryPanel.classList.add("hidden");
+    libraryBtn.classList.remove("active");
+  }
   libraryBtn.addEventListener("click", () => {
     if (libraryPanel.classList.contains("hidden")) openLibrary();
-    else libraryPanel.classList.add("hidden");
+    else closeLibrary();
   });
   guideLibBtn.addEventListener("click", openLibrary);
   if (!PlanStore.available()) guideLibBtn.classList.add("hidden");
@@ -1229,9 +1404,7 @@
   aboutModal.addEventListener("click", (e) => {
     if (e.target === aboutModal) aboutModal.classList.add("hidden"); // backdrop
   });
-  document.getElementById("lib-close").addEventListener("click", () =>
-    libraryPanel.classList.add("hidden")
-  );
+  document.getElementById("lib-close").addEventListener("click", closeLibrary);
   // Manual fallback: save the selected plan (if you skipped the confirm checkbox).
   document.getElementById("lib-save").addEventListener("click", () => {
     const p = selectedPlan;
@@ -1297,10 +1470,15 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (!aboutModal.classList.contains("hidden")) {
+    if (furnPlacing) {
+      furnPlacing = null;
+      render();
+    } else if (!aboutModal.classList.contains("hidden")) {
       aboutModal.classList.add("hidden");
     } else if (!libraryPanel.classList.contains("hidden")) {
-      libraryPanel.classList.add("hidden");
+      closeLibrary();
+    } else if (!furniturePanel.classList.contains("hidden")) {
+      closeFurniture();
     } else if (addingPlan) {
       addingPlan = false;
       render();

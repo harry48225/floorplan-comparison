@@ -20,6 +20,9 @@ Library button is hidden. Intended to be hosted publicly.
 - `app.js` — all app logic, wrapped in one IIFE. No modules, no framework.
 - `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper for saved plans (loaded
   before `app.js`). No personal data is bundled in the repo.
+- `furniture.js` — `window.Furniture = { CATALOG, ICONS }`: the standard furniture
+  catalogue (real-world sizes in metres) and top-down icon schematics (loaded before
+  `app.js`). Data only, no logic.
 
 ## Core model
 
@@ -75,8 +78,26 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Opacity:** per-plan slider on the card tucked into the plan's top-left corner.
 - **Measure area** (floating toolbar, top-left): click two corners to draw a rectangle; it
   auto-exits and selects the box. Boxes show width/height + m². Select for handles (8 resize +
-  rotate + delete ×). Stored `{ plan, cx, cy, w, h, angle }` in the owning plan's natural-pixel
-  coords. Dragging a box onto another plan re-anchors it (keeps on-screen size/angle).
+  rotate + delete ×). Stored `{ kind:"area", plan, cx, cy, w, h, angle }` in the owning plan's
+  natural-pixel coords. Dragging a box onto another plan re-anchors it (keeps on-screen
+  size/angle).
+- **Furniture** (right-hand toolbar → **Furniture** palette): picking a catalogue item *arms*
+  placement (`furnPlacing`) — a ghost follows the cursor and the next canvas click drops the
+  real-world-sized piece, anchored to the plan under the cursor (Esc cancels). You can also
+  **press-and-drag** an item straight from the palette onto the canvas: pointerdown arms it,
+  the ghost follows, and it drops on pointerup over the stage (same armed state, dropped on
+  release instead of a click). The Furniture
+  and Library panels sit in the same top-right spot and are mutually exclusive (opening one
+  closes the other; both live outside `#stage` so their clicks/scroll don't reach the canvas). A
+  furniture piece is just an area box with `kind:"furniture"` (plus `label`, `icon`) — it
+  reuses all the move/rotate/re-anchor machinery, so `w/h` are still the plan's natural pixels
+  (`realMetres / unitsPerPx`). It's **locked to its real size** (rotate/delete only, no resize)
+  and shows its name + dimensions only while selected/placing (the schematic identifies it
+  otherwise); both labels are stacked upright in screen space (name, then dimensions 16px
+  below) so they never rotate with the piece or overlap. `furniture.js` holds the catalogue
+  (metres) and per-item icon schematics authored in a unit box; `boxIconSVG` affine-maps the
+  icon onto the placed rectangle (`vector-effect: non-scaling-stroke`) so it scales/rotates
+  with the piece. Placements are transient — not saved to the library.
 
 ## Layering & hit-testing (important gotchas)
 
