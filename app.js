@@ -1246,6 +1246,51 @@
     saveToLibrary(p);
   });
 
+  // Export the whole library to a JSON backup file.
+  document.getElementById("lib-export").addEventListener("click", async () => {
+    const bundle = await PlanStore.exportAll();
+    if (!bundle.plans.length) {
+      showHint("Your library is empty — nothing to export.", 2800);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([JSON.stringify(bundle)], { type: "application/json" }));
+    const d = new Date();
+    const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `floorplans-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showHint(`Exported ${bundle.plans.length} plan${bundle.plans.length === 1 ? "" : "s"}.`, 2400);
+  });
+
+  // Restore a library from a JSON backup file (overwrites matching ids).
+  const libImportFile = document.getElementById("lib-import-file");
+  document.getElementById("lib-import").addEventListener("click", () => libImportFile.click());
+  libImportFile.addEventListener("change", async () => {
+    const file = libImportFile.files[0];
+    libImportFile.value = ""; // let the same file be re-picked later
+    if (!file) return;
+    let bundle;
+    try {
+      bundle = JSON.parse(await file.text());
+    } catch (_) {
+      showHint("That file isn't a valid backup.", 3200);
+      return;
+    }
+    try {
+      const { added, skipped } = await PlanStore.importAll(bundle);
+      refreshLibrary();
+      let msg = `Imported ${added} plan${added === 1 ? "" : "s"}.`;
+      if (skipped) msg += ` ${skipped} skipped.`;
+      showHint(msg, 2800);
+    } catch (err) {
+      showHint(err.message || "Couldn't import that file.", 3600);
+    }
+  });
+
   // ---- Calibration confirm + keyboard + paste/drop ----
   document.getElementById("confirm-yes").addEventListener("click", confirmMeasure);
   document.getElementById("confirm-redo").addEventListener("click", resetMeasure);

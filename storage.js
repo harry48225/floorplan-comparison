@@ -49,6 +49,17 @@ window.PlanStore = (() => {
   const uuid = () =>
     crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(16).slice(2);
 
+  // Blob <-> data URL, so image bytes survive a round-trip through JSON.
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }
+  const dataUrlToBlob = (url) => fetch(url).then((r) => r.blob());
+
   return {
     available,
     uuid,
@@ -87,8 +98,55 @@ window.PlanStore = (() => {
         : Promise.resolve(false);
     },
 
-    // --- Designed for a later phase, not wired into the UI yet ---
-    // exportAll(): bundle records to a downloadable JSON (blobs -> data URLs).
-    // importAll(file, {merge}): parse such a file and save() each record.
+    // --- Backup: whole-library export / restore as a self-contained JSON bundle ---
+    async exportAll() {
+      const recs = await this.list();
+      const plans = await Promise.all(
+        recs.map(async (r) => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          unitsPerPx: r.unitsPerPx,
+          width: r.width,
+          height: r.height,
+          calibLine: r.calibLine || null,
+          created: r.created,
+          updated: r.updated,
+          blob: r.blob ? await blobToDataUrl(r.blob) : null,
+          thumb: r.thumb ? await blobToDataUrl(r.thumb) : null,
+        }))
+      );
+      return { app: DB, version: VERSION, exported: Date.now(), plans };
+    },
+    // merge=true (restore): keep original ids and overwrite matches, so
+    // re-importing the same backup is idempotent. merge=false: add as new.
+    async importAll(bundle, { merge = true } = {}) {
+      if (!bundle || bundle.app !== DB || !Array.isArray(bundle.plans)) {
+        throw new Error("Not a Floor Plan Overlay backup file.");
+      }
+      let added = 0;
+      let skipped = 0;
+      for (const p of bundle.plans) {
+        if (!p || !p.blob) {
+          skipped++;
+          continue;
+        }
+        await this.save({
+          id: merge && p.id ? p.id : uuid(),
+          name: p.name || "Untitled",
+          blob: await dataUrlToBlob(p.blob),
+          type: p.type || "image/jpeg",
+          unitsPerPx: p.unitsPerPx,
+          width: p.width,
+          height: p.height,
+          thumb: p.thumb ? await dataUrlToBlob(p.thumb) : null,
+          calibLine: p.calibLine || null,
+          created: p.created || Date.now(),
+          updated: Date.now(),
+        });
+        added++;
+      }
+      return { added, skipped };
+    },
   };
 })();

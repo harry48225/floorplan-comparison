@@ -64,7 +64,10 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   checkbox in the confirm step (default on); `#lib-save` is a manual fallback for the selected
   plan. Stores image Blob + `unitsPerPx` + thumbnail. Add / rename / delete from the panel;
   persistence is requested automatically on first open. Remote-URL images can't be saved (no
-  Blob / tainted canvas). Export/import is designed (see `PlanStore`) but not built.
+  Blob / tainted canvas). **Backup:** the Library footer has **Export** (whole library →
+  a self-contained JSON file; image bytes as base64 data URLs) and **Import** (restore from
+  such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
+  See `PlanStore.exportAll` / `importAll`.
 - **Move a plan:** drag it. **Remove a plan from the canvas:** the ✕ on its card (does not
   touch the library). **Pan the view:** drag empty canvas. **Zoom:** wheel or the +/− toolbar.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
