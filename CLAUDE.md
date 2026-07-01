@@ -76,6 +76,12 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
 - **Opacity:** per-plan slider on the card tucked into the plan's top-left corner.
+- **Scale bar** (`#scale-bar`, bottom, left of the zoom buttons): a dynamic Google-Maps-style
+  bar — one shared baseline with a metric tick + label above and an imperial tick + label below
+  (measured from a shared right-hand origin) — redrawn each `render()` by `updateScaleBar()`.
+  Screen px per metre = `view.scale · p.scale / unitsPerPx` (equal across matched plans); each
+  picks a nice 1/2/5 ×10ⁿ distance ≤100 px, labelled in m/cm and ft/in (via `niceRound`).
+  Hidden until at least one plan is calibrated.
 - **Measure area** (floating toolbar, top-left): click two corners to draw a rectangle; it
   auto-exits and selects the box. Boxes show width/height + m². Select for handles (8 resize +
   rotate + delete ×). Stored `{ kind:"area", plan, cx, cy, w, h, angle }` in the owning plan's

@@ -57,6 +57,12 @@
   const planUiSvg = document.getElementById("plan-ui");
   const calibSvg = document.getElementById("calib-layer");
   const areaBtn = document.getElementById("area-btn");
+  const scaleBar = document.getElementById("scale-bar");
+  const scaleTrack = scaleBar.querySelector(".scale-track");
+  const scaleMetricTick = scaleBar.querySelector(".scale-tick-metric");
+  const scaleImperialTick = scaleBar.querySelector(".scale-tick-imperial");
+  const scaleMetricLabel = scaleBar.querySelector(".scale-metric-label");
+  const scaleImperialLabel = scaleBar.querySelector(".scale-imperial-label");
   const furnitureBtn = document.getElementById("furniture-btn");
   const furniturePanel = document.getElementById("furniture");
   const furnGrid = document.getElementById("furn-grid");
@@ -321,6 +327,61 @@
     }
 
     updateGuide();
+    updateScaleBar();
+  }
+
+  // Largest "nice" number (1/2/5 ×10ⁿ) not exceeding max.
+  function niceRound(max) {
+    const pow = Math.pow(10, Math.floor(Math.log10(max)));
+    const d = max / pow;
+    return (d >= 5 ? 5 : d >= 2 ? 2 : 1) * pow;
+  }
+
+  // Google-Maps-style scale bar: one shared baseline with a metric tick + label
+  // above and an imperial tick + label below, each a nice round distance fitting
+  // within a max width. Screen px per metre = view.scale · plan.scale / unitsPerPx
+  // (equal across matched plans).
+  function updateScaleBar() {
+    const p = plans.find((pl) => pl.loaded && pl.unitsPerPx != null);
+    if (!p) {
+      scaleBar.classList.add("hidden");
+      return;
+    }
+    const pxPerM = (view.scale * p.scale) / p.unitsPerPx;
+    const maxPx = 100;
+
+    const niceM = niceRound(maxPx / pxPerM);
+    const metricPx = niceM * pxPerM;
+    scaleMetricLabel.textContent =
+      niceM >= 1000
+        ? `${+(niceM / 1000).toFixed(2)} km`
+        : niceM >= 1
+        ? `${+niceM.toFixed(2)} m`
+        : niceM >= 0.01
+        ? `${Math.round(niceM * 100)} cm`
+        : `${Math.round(niceM * 1000)} mm`;
+
+    const pxPerFt = pxPerM * 0.3048;
+    const maxFt = maxPx / pxPerFt;
+    let impPx;
+    if (maxFt >= 1) {
+      const niceFt = niceRound(maxFt);
+      impPx = niceFt * pxPerFt;
+      scaleImperialLabel.textContent =
+        niceFt >= 5280 ? `${+(niceFt / 5280).toFixed(2)} mi` : `${+niceFt.toFixed(0)} ft`;
+    } else {
+      const pxPerIn = pxPerFt / 12;
+      const niceIn = niceRound(maxPx / pxPerIn);
+      impPx = niceIn * pxPerIn;
+      scaleImperialLabel.textContent = `${niceIn >= 1 ? niceIn : +niceIn.toFixed(1)} in`;
+    }
+
+    scaleMetricTick.style.right = metricPx + "px";
+    scaleMetricLabel.style.width = metricPx + "px";
+    scaleImperialTick.style.right = impPx + "px";
+    scaleImperialLabel.style.width = impPx + "px";
+    scaleTrack.style.width = Math.max(metricPx, impPx) + "px";
+    scaleBar.classList.remove("hidden");
   }
 
   // Tuck a plan's card just inside its top-left (0,0) corner.

@@ -219,6 +219,44 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
+/* Dynamic map-style scale bar (bottom, left of the zoom buttons): one shared
+   baseline with a metric tick + label above and an imperial tick + label below,
+   both measured from the shared right-hand origin. Widths/offsets set in JS. */
+.scale-bar {
+  position: absolute;
+  right: 64px;
+  bottom: 16px;
+  z-index: 5;
+  pointer-events: none;
+  color: var(--text);
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, .9));
+}
+.scale-track {
+  position: absolute;
+  right: 0;
+  bottom: 19px;
+  height: 2px;
+  background: currentColor;
+}
+.scale-tick {
+  position: absolute;
+  width: 2px;
+  background: currentColor;
+}
+.scale-tick-origin { right: 0; bottom: 13px; height: 14px; }
+.scale-tick-metric { bottom: 20px; height: 7px; }   /* up; right set in JS */
+.scale-tick-imperial { bottom: 13px; height: 7px; }  /* down; right set in JS */
+.scale-metric-label,
+.scale-imperial-label {
+  position: absolute;
+  right: 0;
+  text-align: center;
+  white-space: nowrap;
+  font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.scale-metric-label { bottom: 28px; }
+.scale-imperial-label { bottom: 0; }
+
 /* Plan images */
 .layer img {
   position: absolute;
