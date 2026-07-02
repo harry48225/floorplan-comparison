@@ -124,12 +124,18 @@
     saveBtn.type = "button";
     saveBtn.innerHTML = '<span class="card-dot"></span>Save to library';
     saveBtn.title = "This plan isn't saved — click to add it to your library";
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "card-lock";
+    lockBtn.type = "button";
+    lockBtn.textContent = "🔓";
+    lockBtn.title = "Lock this plan in place";
+    lockBtn.setAttribute("aria-pressed", "false");
     const del = document.createElement("button");
     del.className = "card-del";
     del.type = "button";
     del.textContent = "✕";
     del.title = "Remove this plan from the comparison";
-    card.append(nameEl, slider, recalBtn, showBtn, saveBtn, del);
+    card.append(nameEl, slider, recalBtn, showBtn, saveBtn, lockBtn, del);
     cardsEl.appendChild(card);
 
     const opacity = opts.opacity != null ? opts.opacity : plans.length === 0 ? 1 : 0.6;
@@ -157,6 +163,7 @@
       rotation: 0,
       unitsPerPx: null,
       opacity,
+      locked: false, // pinned: not pickable/draggable until unlocked
       save: !!opts.save,
     };
     slider.value = opacity * 100;
@@ -181,6 +188,16 @@
     showBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     showBtn.addEventListener("click", () => {
       showCalibFor = showCalibFor === p ? null : p;
+      render();
+    });
+    lockBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    lockBtn.addEventListener("click", () => {
+      p.locked = !p.locked;
+      lockBtn.textContent = p.locked ? "🔒" : "🔓";
+      lockBtn.title = p.locked ? "Unlock this plan" : "Lock this plan in place";
+      lockBtn.setAttribute("aria-pressed", String(p.locked));
+      lockBtn.classList.toggle("locked", p.locked);
+      if (p.locked && selectedPlan === p) selectedPlan = null;
       render();
     });
 
@@ -481,9 +498,11 @@
     return loc.nx >= 0 && loc.nx <= p.img.naturalWidth && loc.ny >= 0 && loc.ny <= p.img.naturalHeight;
   }
 
-  // Topmost plan under the cursor, else null.
+  // Topmost unlocked plan under the cursor, else null (locked plans are
+  // click-through: clicks reach whatever is beneath them).
   function pickPlan(e) {
-    for (let k = plans.length - 1; k >= 0; k--) if (planAt(plans[k], e)) return plans[k];
+    for (let k = plans.length - 1; k >= 0; k--)
+      if (planAt(plans[k], e) && !plans[k].locked) return plans[k];
     return null;
   }
 
@@ -1650,6 +1669,18 @@
       selectedPlan = null;
       render();
     }
+  });
+
+  // Nudge the selected plan with the arrow keys (Shift = 10× coarser).
+  const NUDGE_KEYS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  document.addEventListener("keydown", (e) => {
+    const d = NUDGE_KEYS[e.key];
+    if (!d || !selectedPlan || calibrating() || e.target !== document.body) return;
+    e.preventDefault();
+    const step = (e.shiftKey ? 10 : 1) / view.scale; // move by whole screen px
+    selectedPlan.tx += d[0] * step;
+    selectedPlan.ty += d[1] * step;
+    render();
   });
 
   // Hold Space to peek under the top plan.

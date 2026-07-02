@@ -144,6 +144,17 @@ input[type="range"] {
   line-height: 1;
   color: #e5484d;
 }
+.card-lock {
+  pointer-events: auto;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
+}
+.card-lock.locked {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
 .card-save {
   pointer-events: auto;
   display: inline-flex;
