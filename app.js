@@ -388,7 +388,6 @@
       }
     }
 
-    tintBtn.classList.toggle("active", plans.some((p) => p.tint != null));
     updateGuide();
     updateScaleBar();
   }
@@ -985,6 +984,7 @@
     const item = furnPlacing.item;
     const p = pickAreaPlan(sx, sy);
     furnPlacing = null;
+    furnJustPlaced = true; // the click that placed it shouldn't close the palette
     if (!p) {
       showHint("Calibrate a plan first, then add furniture.", 3200);
       render();
@@ -1638,16 +1638,50 @@
       plans.filter((p) => p.loaded).forEach((p, i) => (p.tint = i % TINTS.length));
     renderTintRows();
     tintPop.classList.remove("hidden");
+    tintBtn.classList.add("active");
     render();
   }
   function closeTint() {
     tintPop.classList.add("hidden");
+    tintBtn.classList.remove("active");
   }
   tintBtn.addEventListener("click", () => {
     if (tintPop.classList.contains("hidden")) openTint();
     else closeTint();
   });
   document.getElementById("tint-close").addEventListener("click", closeTint);
+
+  // Clicking anywhere outside an open panel closes it (each panel's own
+  // toggle button still handles itself). The click that places a furniture
+  // piece — or arms one, while a ghost is still following the cursor — keeps
+  // the palette open for placing more. Membership uses composedPath, not
+  // contains: clicking a control that re-renders its panel (tint swatches,
+  // library actions) detaches the target before this handler runs.
+  let furnJustPlaced = false;
+  document.addEventListener("click", (e) => {
+    const path = e.composedPath();
+    if (
+      !tintPop.classList.contains("hidden") &&
+      !path.includes(tintPop) &&
+      e.target !== tintBtn
+    )
+      closeTint();
+    const placing = furnJustPlaced || !!furnPlacing;
+    furnJustPlaced = false;
+    if (
+      !placing &&
+      !furniturePanel.classList.contains("hidden") &&
+      !path.includes(furniturePanel) &&
+      e.target !== furnitureBtn
+    )
+      closeFurniture();
+    if (
+      !libraryPanel.classList.contains("hidden") &&
+      !path.includes(libraryPanel) &&
+      e.target !== libraryBtn
+    )
+      closeLibrary();
+  });
 
   // Add plan: show the "add a plan" prompt (paste / drop / choose file / Library).
   const addPlanInput = document.getElementById("add-plan-input");
@@ -1868,7 +1902,7 @@
     p.calibLine = rec.calibLine || null;
     p.created = rec.created;
     setImageSrc(p, URL.createObjectURL(rec.blob), rec.unitsPerPx, rec.blob);
-    libraryPanel.classList.add("hidden"); // close the library after adding
+    closeLibrary(); // close the library after adding
     showHint(`Added “${rec.name}”.`, 2000);
   }
 
