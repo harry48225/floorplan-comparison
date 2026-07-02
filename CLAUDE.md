@@ -90,14 +90,22 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
 - **Opacity:** per-plan slider on the card tucked into the plan's top-left corner. The card
-  also shows a running total of the plan's measured rooms (`N rooms · X m²`).
+  also shows a running total of the plan's measured rooms (`N rooms · X m²`). Opacity is
+  **differential** — the walls fade slower than the rest, so structure stays legible as a
+  plan goes sheer: rest opacity = slider `o`, wall opacity = `1 − (1 − o)⁵` (e.g. at o=0.5
+  the rooms are 50% transparent but the walls only ~3%). Both hit 0 at o=0 and 1 at o=1.
 - **Tint:** every new plan auto-takes the least-used palette colour (`p.tint` = index into
   `TINTS` | null, assigned in `addPlan`). The coloured dot on the plan's card opens an inline
-  swatch row (5 colours + ✕ none) to change or disable it. SVG filters (generated at startup,
-  applied via `filter: url(#tint-i)`) recolour **only the walls**: a dark-pixel alpha mask is
-  morphologically opened (erode→dilate, radius 1, in natural-px user space) so thin dark
-  features — room labels, dimension lines — drop out, then flood colour is composited `in`
-  the mask over the untouched original (`out` the mask).
+  swatch row (5 colours + ✕ none) to change or disable it.
+- **Wall filter** (tint + differential opacity share one per-plan SVG filter `#fx-<id>`,
+  created in `addPlan`, rebuilt by `updatePlanFilter` only when opacity or tint change — never
+  in `render`). A dark-pixel alpha **wall mask** is morphologically opened (erode→dilate,
+  radius 1, natural-px user space) so thin dark features — room labels, dimension lines — drop
+  out, leaving the walls. The image is then split into a wall layer (flood colour if tinted,
+  else original; alpha × wall opacity) composited `in` the mask, and a rest layer (original;
+  alpha × rest opacity) composited `out` the mask, and the two are merged. No filter is
+  attached when a plan is fully opaque and untinted. The loupe clone clears its filter so it
+  magnifies the raw plan.
 - **Undo:** removing a plan or deleting an area/tape/furniture shows a one-slot undo toast
   (`offerUndo`, 8 s). Plan removal is a *soft* delete — DOM lingers hidden until finalized.
 - **Scale bar** (`#scale-bar`, bottom, left of the zoom buttons): a dynamic Google-Maps-style

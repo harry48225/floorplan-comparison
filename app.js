@@ -108,6 +108,12 @@
     layer.append(img, planSvg);
     layersEl.appendChild(layer);
 
+    // Per-plan wall filter (tint + differential opacity); built by updatePlanFilter.
+    const fxFilter = document.createElementNS(SVGNS, "filter");
+    fxFilter.setAttribute("id", `fx-${id}`);
+    fxFilter.setAttribute("color-interpolation-filters", "sRGB");
+    fxDefs.appendChild(fxFilter);
+
     const card = document.createElement("div");
     card.className = "card";
     const nameEl = document.createElement("span");
@@ -179,6 +185,7 @@
       recalBtn,
       showBtn,
       tintBtn,
+      fxFilter,
       layer,
       loaded: false,
       blob: null,
@@ -200,6 +207,7 @@
 
     slider.addEventListener("input", () => {
       p.opacity = slider.value / 100;
+      updatePlanFilter(p);
       render();
     });
     slider.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -233,6 +241,7 @@
       if (!btn) return;
       p.tint = btn.dataset.tint === "" ? null : Number(btn.dataset.tint);
       tintRow.classList.add("hidden");
+      updatePlanFilter(p);
       render();
     });
     lockBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -273,6 +282,7 @@
       if (p.objUrl) URL.revokeObjectURL(p.objUrl);
       p.layer.remove();
       p.card.remove();
+      p.fxFilter.remove();
     };
     if (!p.loaded) {
       finalize(); // a failed load: nothing worth restoring
@@ -316,6 +326,7 @@
     centre(p);
     p.unitsPerPx = p.pendingUpp;
     p.img.hidden = false;
+    updatePlanFilter(p);
     render();
     continueCalibration();
   }
@@ -392,8 +403,8 @@
       p.img.style.transform =
         `translate(${view.x}px, ${view.y}px) scale(${view.scale}) ` +
         `translate(${p.tx}px, ${p.ty}px) rotate(${p.rotation}deg) scale(${p.scale})`;
-      p.img.style.opacity = p.opacity;
-      p.img.style.filter = p.tint != null ? `url(#tint-${p.tint})` : "";
+      // Opacity + tint live in the plan's own filter (updatePlanFilter), rebuilt
+      // only when they change — not here, which runs on every pan/zoom/drag.
       if (!calibrating()) p.img.style.visibility = peeking && p === topLoaded ? "hidden" : "visible";
       positionCard(p);
     });
@@ -1364,6 +1375,7 @@
     clone.hidden = false;
     clone.style.visibility = "visible";
     clone.style.opacity = 1;
+    clone.style.filter = ""; // magnify the raw plan, not its tint/transparency
     const mirror = document.createElementNS(SVGNS, "svg");
     mirror.setAttribute("class", "loupe-calib");
     loupeContent.append(clone, mirror);
@@ -1591,12 +1603,15 @@
   areaBtn.addEventListener("click", () => setAreaTool(!areaTool));
   distBtn.addEventListener("click", () => setDistTool(!distTool));
 
-  // ---- Tint: recolour a plan's walls a chosen hue ----
-  // Filter chain per colour: build a "dark pixels" mask, then a morphological
-  // opening (erode → dilate) drops thin dark features (text, dimension lines)
-  // so only thick strokes — the walls — stay in the mask. Output = flood
-  // colour where the mask is, the untouched original everywhere else. Plans
-  // reference them via CSS filter:url(#tint-i); p.tint is an index or null.
+  // ---- Per-plan wall filter: tint + differential transparency ----
+  // A "dark pixels" mask (morphologically opened so thin dark features — text,
+  // dimension lines — drop out, leaving thick strokes: the walls) is reused for
+  // two things on every plan: optional tint (flood the walls a hue) and
+  // differential opacity. The non-wall layer fades at the slider rate while the
+  // walls fade far slower, so the structure stays legible as a plan goes sheer.
+  // rest opacity = o; wall opacity = 1 − (1 − o)⁵ (walls hold on hard — at o=0.5
+  // the rooms are 50% transparent but the walls only ~3%). Each plan owns a
+  // filter (#fx-<id>), rebuilt by updatePlanFilter when its opacity/tint change.
   const TINTS = [
     { name: "Red", hex: "#d7263d" },
     { name: "Blue", hex: "#1d4ed8" },
@@ -1604,31 +1619,47 @@
     { name: "Orange", hex: "#d97706" },
     { name: "Purple", hex: "#7c3aed" },
   ];
-  {
-    const defs = document.createElementNS(SVGNS, "svg");
-    defs.setAttribute("width", 0);
-    defs.setAttribute("height", 0);
-    defs.setAttribute("aria-hidden", "true");
-    defs.style.position = "absolute";
-    // Darkness (1 − luminance, alpha-aware) into the alpha channel: opaque
-    // dark pixels → 1, light or transparent pixels → 0.
-    const dark = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 1 0";
-    // Steep threshold: only quite-dark pixels (luminance < ~0.25) enter the mask.
-    const steep = '<feFuncA type="table" tableValues="0 0 0 0 0 0 0 0.5 1 1 1"></feFuncA>';
-    defs.innerHTML = TINTS.map(
-      ({ hex }, i) =>
-        `<filter id="tint-${i}" color-interpolation-filters="sRGB">` +
-        `<feColorMatrix type="matrix" values="${dark}"></feColorMatrix>` +
-        `<feComponentTransfer>${steep}</feComponentTransfer>` +
-        `<feMorphology operator="erode" radius="1"></feMorphology>` +
-        `<feMorphology operator="dilate" radius="1" result="mask"></feMorphology>` +
-        `<feFlood flood-color="${hex}" result="col"></feFlood>` +
-        `<feComposite in="col" in2="mask" operator="in" result="walls"></feComposite>` +
-        `<feComposite in="SourceGraphic" in2="mask" operator="out" result="rest"></feComposite>` +
-        `<feMerge><feMergeNode in="rest"></feMergeNode><feMergeNode in="walls"></feMergeNode></feMerge>` +
-        `</filter>`
-    ).join("");
-    document.body.appendChild(defs);
+  // Darkness (1 − luminance, alpha-aware) into the alpha channel: opaque dark
+  // pixels → 1, light or transparent pixels → 0. Steep threshold keeps only
+  // quite-dark pixels; erode→dilate then drops thin features, leaving walls.
+  const FX_MASK =
+    '<feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 1 0"></feColorMatrix>' +
+    '<feComponentTransfer><feFuncA type="table" tableValues="0 0 0 0 0 0 0 0.5 1 1 1"></feFuncA></feComponentTransfer>' +
+    '<feMorphology operator="erode" radius="1"></feMorphology>' +
+    '<feMorphology operator="dilate" radius="1" result="mask"></feMorphology>';
+  const fxDefs = document.createElementNS(SVGNS, "svg");
+  fxDefs.setAttribute("width", 0);
+  fxDefs.setAttribute("height", 0);
+  fxDefs.setAttribute("aria-hidden", "true");
+  fxDefs.style.position = "absolute";
+  document.body.appendChild(fxDefs);
+
+  // True when p needs a filter at all (else the raw image shows through).
+  const planNeedsFilter = (p) => p.tint != null || p.opacity < 1;
+
+  // (Re)build p's filter to match its current opacity + tint, and point the
+  // image at it (or clear the filter when the raw image would look identical).
+  function updatePlanFilter(p) {
+    if (!planNeedsFilter(p)) {
+      p.img.style.filter = "";
+      return;
+    }
+    const restOp = p.opacity;
+    const wallOp = 1 - (1 - p.opacity) ** 5;
+    // Wall pixels: flood colour if tinted, else the original wall pixels.
+    const wallSrc =
+      p.tint != null
+        ? `<feFlood flood-color="${TINTS[p.tint].hex}" result="wc"></feFlood>` +
+          `<feComposite in="wc" in2="mask" operator="in" result="wallpix"></feComposite>`
+        : `<feComposite in="SourceGraphic" in2="mask" operator="in" result="wallpix"></feComposite>`;
+    p.fxFilter.innerHTML =
+      FX_MASK +
+      wallSrc +
+      `<feComponentTransfer in="wallpix" result="walls"><feFuncA type="linear" slope="${wallOp}"></feFuncA></feComponentTransfer>` +
+      `<feComposite in="SourceGraphic" in2="mask" operator="out" result="restpix"></feComposite>` +
+      `<feComponentTransfer in="restpix" result="rest"><feFuncA type="linear" slope="${restOp}"></feFuncA></feComponentTransfer>` +
+      `<feMerge><feMergeNode in="rest"></feMergeNode><feMergeNode in="walls"></feMergeNode></feMerge>`;
+    p.img.style.filter = `url(#fx-${p.id})`;
   }
 
   // Clicking anywhere outside an open panel closes it (each panel's own
