@@ -22,6 +22,13 @@
   let areaMove = null; // { index, lastSx, lastSy }
   let areaResize = null; // { index, sx, sy } (which corner/edge, -1|0|1)
   let areaRotate = null; // { index }
+
+  // Tape measure: a point-to-point line, stored alongside the area boxes as
+  // { kind:"tape", plan, ax, ay, bx, by } in its plan's natural-pixel coords.
+  let distTool = false;
+  let distDraw = null; // { plan, ax, ay } while placing the second end
+  let distCursor = null; // { nx, ny } live second end (snapped)
+  let tapeEnd = null; // { index, end:"a"|"b" } dragging a tape endpoint
   let selected = null; // index into areas[] of the box in edit mode, or null
   const areas = [];
   let furnPlacing = null; // { item, sx, sy } while placing a furniture piece
@@ -59,6 +66,7 @@
   const planUiSvg = document.getElementById("plan-ui");
   const calibSvg = document.getElementById("calib-layer");
   const areaBtn = document.getElementById("area-btn");
+  const distBtn = document.getElementById("dist-btn");
   const scaleBar = document.getElementById("scale-bar");
   const scaleTrack = scaleBar.querySelector(".scale-track");
   const scaleMetricTick = scaleBar.querySelector(".scale-tick-metric");
@@ -510,6 +518,7 @@
     if (
       (calibrating() && !calibPending) ||
       areaTool ||
+      distTool ||
       e.target.closest("#guide") ||
       e.target.closest(".card") ||
       e.target.closest(".zoom-toolbar") ||
@@ -689,6 +698,36 @@
     return s;
   }
 
+  // A tape line: invisible fat hit line + visible line + end dots + length
+  // label; endpoint handles and a delete button while selected.
+  function tapeSVG(a, k, sel) {
+    const A = planToScreen(a.plan, a.ax, a.ay);
+    const B = planToScreen(a.plan, a.bx, a.by);
+    const di = k == null ? "" : ` data-i="${k}"`;
+    const dx = B.x - A.x;
+    const dy = B.y - A.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const m = Math.hypot(a.bx - a.ax, a.by - a.ay) * a.plan.unitsPerPx;
+    let s =
+      `<line class="tape-hit"${di} x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"></line>` +
+      `<line class="tape" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"></line>` +
+      `<circle class="tape-dot" cx="${A.x}" cy="${A.y}" r="3"></circle>` +
+      `<circle class="tape-dot" cx="${B.x}" cy="${B.y}" r="3"></circle>` +
+      `<text class="tape-label" x="${(A.x + B.x) / 2 - (dy / len) * 14}"` +
+      ` y="${(A.y + B.y) / 2 + (dx / len) * 14}">${m.toFixed(2)} m</text>`;
+    if (sel) {
+      s +=
+        `<circle class="tape-end"${di} data-end="a" cx="${A.x}" cy="${A.y}" r="5.5"></circle>` +
+        `<circle class="tape-end"${di} data-end="b" cx="${B.x}" cy="${B.y}" r="5.5"></circle>`;
+      const d = { x: (A.x + B.x) / 2 + (dy / len) * 18, y: (A.y + B.y) / 2 - (dx / len) * 18 };
+      const o = 3.5;
+      s += `<circle class="del"${di} cx="${d.x}" cy="${d.y}" r="9"></circle>`;
+      s += `<line class="del-x" x1="${d.x - o}" y1="${d.y - o}" x2="${d.x + o}" y2="${d.y + o}"></line>`;
+      s += `<line class="del-x" x1="${d.x - o}" y1="${d.y + o}" x2="${d.x + o}" y2="${d.y - o}"></line>`;
+    }
+    return s;
+  }
+
   function renderAreas() {
     const byPlan = new Map(plans.map((p) => [p, ""]));
     let top = "";
@@ -698,15 +737,22 @@
       ? areas[areaResize.index]
       : areaRotate
       ? areas[areaRotate.index]
+      : tapeEnd
+      ? areas[tapeEnd.index]
       : null;
 
     areas.forEach((a, k) => {
       if (!a.plan.loaded || a.plan.unitsPerPx == null) return;
       const sel = k === selected && !areaDraw;
-      let s = boxPolygonSVG(a, k);
-      if (a.kind === "furniture") s += boxIconSVG(a);
-      if (sel) s += boxHandlesSVG(a, k);
-      s += boxLabelsSVG(a, sel);
+      let s;
+      if (a.kind === "tape") {
+        s = tapeSVG(a, k, sel);
+      } else {
+        s = boxPolygonSVG(a, k);
+        if (a.kind === "furniture") s += boxIconSVG(a);
+        if (sel) s += boxHandlesSVG(a, k);
+        s += boxLabelsSVG(a, sel);
+      }
       if (a === activeBox) top += s; // lift the dragged box above everything
       else byPlan.set(a.plan, byPlan.get(a.plan) + s);
     });
@@ -718,6 +764,13 @@
     if (areaDraw && areaCursor) {
       const a = drawingBox();
       if (a.plan.loaded && a.plan.unitsPerPx != null) top += boxPolygonSVG(a, null) + boxLabelsSVG(a);
+    }
+    if (distDraw && distCursor) {
+      top += tapeSVG(
+        { kind: "tape", plan: distDraw.plan, ax: distDraw.ax, ay: distDraw.ay, bx: distCursor.nx, by: distCursor.ny },
+        null,
+        false
+      );
     }
     const ghost = furnGhostBox();
     if (ghost) top += boxPolygonSVG(ghost, null) + boxIconSVG(ghost) + boxLabelsSVG(ghost, true);
@@ -753,6 +806,20 @@
 
   // After a move, lock the box to whichever plan its centre now sits over.
   function reanchorArea(a) {
+    if (a.kind === "tape") {
+      const A = planToScreen(a.plan, a.ax, a.ay);
+      const B = planToScreen(a.plan, a.bx, a.by);
+      const target = planUnderPoint((A.x + B.x) / 2, (A.y + B.y) / 2);
+      if (!target || target === a.plan) return;
+      const na = screenToPlan(target, A.x, A.y);
+      const nb = screenToPlan(target, B.x, B.y);
+      a.ax = na.nx;
+      a.ay = na.ny;
+      a.bx = nb.nx;
+      a.by = nb.ny;
+      a.plan = target;
+      return;
+    }
     const ctr = planToScreen(a.plan, a.cx, a.cy);
     const target = planUnderPoint(ctr.x, ctr.y);
     if (!target || target === a.plan) return;
@@ -773,12 +840,63 @@
     if (on) {
       selected = null;
       furnPlacing = null; // don't leave a furniture ghost armed under the area tool
+      if (distTool) setDistTool(false); // the two draw tools are exclusive
     }
     areaBtn.classList.toggle("active", on);
-    areaSvg.classList.toggle("active", on);
+    areaSvg.classList.toggle("active", areaTool || distTool);
     if (on) showHint("Click two corners to measure a room.", 3200);
     else hideHint();
     render();
+  }
+
+  function setDistTool(on) {
+    distTool = on;
+    distDraw = null;
+    distCursor = null;
+    if (on) {
+      selected = null;
+      furnPlacing = null;
+      if (areaTool) setAreaTool(false);
+    }
+    distBtn.classList.toggle("active", on);
+    areaSvg.classList.toggle("active", areaTool || distTool);
+    if (on) showHint("Click two points to measure the distance between them.", 3200);
+    else hideHint();
+    render();
+  }
+
+  // Snap the far end to horizontal/vertical (within 15°) in plan coords, so
+  // tapes run along a (possibly rotated) plan's walls.
+  function planSnap(a, pt) {
+    const ang = (Math.atan2(Math.abs(pt.ny - a.ay), Math.abs(pt.nx - a.ax)) * 180) / Math.PI;
+    if (ang <= 15) return { nx: pt.nx, ny: a.ay };
+    if (ang >= 75) return { nx: a.ax, ny: pt.ny };
+    return pt;
+  }
+
+  function distClick(sx, sy) {
+    if (!distDraw) {
+      const p = pickAreaPlan(sx, sy);
+      if (!p) {
+        showHint("Calibrate a plan first.", 2500);
+        return;
+      }
+      const loc = screenToPlan(p, sx, sy);
+      distDraw = { plan: p, ax: loc.nx, ay: loc.ny };
+      distCursor = { nx: loc.nx, ny: loc.ny };
+    } else {
+      const end = planSnap(distDraw, screenToPlan(distDraw.plan, sx, sy));
+      areas.push({
+        kind: "tape",
+        plan: distDraw.plan,
+        ax: distDraw.ax,
+        ay: distDraw.ay,
+        bx: end.nx,
+        by: end.ny,
+      });
+      setDistTool(false); // auto-exit, like the area tool
+      selected = areas.length - 1;
+    }
   }
 
   // ---- Furniture: place a real-world-sized piece from the catalogue. ----
@@ -806,6 +924,7 @@
       return;
     }
     if (areaTool) setAreaTool(false);
+    if (distTool) setDistTool(false);
     furnPlacing = { item, sx: null, sy: null };
     selected = null;
     selectedPlan = null;
@@ -887,13 +1006,18 @@
   });
   document.getElementById("furn-close").addEventListener("click", closeFurniture);
 
-  // Drawing a new box: the top layer captures clicks while the tool is on.
+  // Drawing a new box or tape: the top layer captures clicks while a tool is on.
   areaSvg.addEventListener("pointerdown", (e) => {
-    if (!areaTool || calibrating()) return;
+    if ((!areaTool && !distTool) || calibrating()) return;
     e.stopPropagation();
     const r = areaSvg.getBoundingClientRect();
     const sx = e.clientX - r.left;
     const sy = e.clientY - r.top;
+    if (distTool) {
+      distClick(sx, sy);
+      render();
+      return;
+    }
     if (!areaDraw) {
       const p = pickAreaPlan(sx, sy);
       if (!p) {
@@ -918,15 +1042,18 @@
   });
 
   areaSvg.addEventListener("pointermove", (e) => {
-    if (!areaDraw) return;
+    if (!areaDraw && !distDraw) return;
     const r = areaSvg.getBoundingClientRect();
-    areaCursor = screenToPlan(areaDraw.plan, e.clientX - r.left, e.clientY - r.top);
+    const sx = e.clientX - r.left;
+    const sy = e.clientY - r.top;
+    if (distDraw) distCursor = planSnap(distDraw, screenToPlan(distDraw.plan, sx, sy));
+    else areaCursor = screenToPlan(areaDraw.plan, sx, sy);
     render();
   });
 
   // Editing existing boxes (DOM-target based, on each plan's own svg).
   function areaEditDown(e) {
-    if (areaTool || calibrating()) return;
+    if (areaTool || distTool || calibrating()) return;
     const t = e.target;
     if (!t.dataset || t.dataset.i == null) return;
     e.stopPropagation();
@@ -942,7 +1069,9 @@
     }
     selected = k;
     selectedPlan = null;
-    if (t.classList.contains("rot")) {
+    if (t.classList.contains("tape-end")) {
+      tapeEnd = { index: k, end: t.dataset.end };
+    } else if (t.classList.contains("rot")) {
       areaRotate = { index: k };
     } else if (t.classList.contains("handle")) {
       areaResize = { index: k, sx: Number(t.dataset.sx), sy: Number(t.dataset.sy) };
@@ -954,11 +1083,23 @@
   }
 
   function areaEditMove(e) {
-    if (!areaResize && !areaMove && !areaRotate) return;
+    if (!areaResize && !areaMove && !areaRotate && !tapeEnd) return;
     const r = e.currentTarget.getBoundingClientRect();
     const sx = e.clientX - r.left;
     const sy = e.clientY - r.top;
-    if (areaRotate) {
+    if (tapeEnd) {
+      const a = areas[tapeEnd.index];
+      const loc = screenToPlan(a.plan, sx, sy);
+      const other = tapeEnd.end === "a" ? { ax: a.bx, ay: a.by } : { ax: a.ax, ay: a.ay };
+      const pt = planSnap(other, loc);
+      if (tapeEnd.end === "a") {
+        a.ax = pt.nx;
+        a.ay = pt.ny;
+      } else {
+        a.bx = pt.nx;
+        a.by = pt.ny;
+      }
+    } else if (areaRotate) {
       const a = areas[areaRotate.index];
       const ctr = planToScreen(a.plan, a.cx, a.cy);
       const deg = (Math.atan2(sy - ctr.y, sx - ctr.x) * 180) / Math.PI;
@@ -993,8 +1134,17 @@
       const a = areas[areaMove.index];
       const cur = screenToPlan(a.plan, sx, sy);
       const prev = screenToPlan(a.plan, areaMove.lastSx, areaMove.lastSy);
-      a.cx += cur.nx - prev.nx;
-      a.cy += cur.ny - prev.ny;
+      const dnx = cur.nx - prev.nx;
+      const dny = cur.ny - prev.ny;
+      if (a.kind === "tape") {
+        a.ax += dnx;
+        a.ay += dny;
+        a.bx += dnx;
+        a.by += dny;
+      } else {
+        a.cx += dnx;
+        a.cy += dny;
+      }
       areaMove.lastSx = sx;
       areaMove.lastSy = sy;
     }
@@ -1002,11 +1152,12 @@
   }
 
   function areaEditUp(e) {
-    if (!areaResize && !areaMove && !areaRotate) return;
-    if (areaMove) reanchorArea(areas[areaMove.index]);
+    if (!areaResize && !areaMove && !areaRotate && !tapeEnd) return;
+    if (areaMove || tapeEnd) reanchorArea(areas[(areaMove || tapeEnd).index]);
     areaResize = null;
     areaMove = null;
     areaRotate = null;
+    tapeEnd = null;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (_) {}
@@ -1331,6 +1482,7 @@
     render();
   });
   areaBtn.addEventListener("click", () => setAreaTool(!areaTool));
+  distBtn.addEventListener("click", () => setDistTool(!distTool));
 
   // Add plan: show the "add a plan" prompt (paste / drop / choose file / Library).
   const addPlanInput = document.getElementById("add-plan-input");
@@ -1740,6 +1892,11 @@
       areaCursor = null;
       render();
     } else if (areaTool) setAreaTool(false);
+    else if (distDraw) {
+      distDraw = null;
+      distCursor = null;
+      render();
+    } else if (distTool) setDistTool(false);
     else if (showCalibFor) {
       showCalibFor = null;
       render();

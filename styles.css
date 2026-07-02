@@ -412,6 +412,30 @@ input[type="range"] {
 .area-plan text.furn-dim,
 .area-layer text.furn-dim { font-size: 11px; fill: var(--muted); }
 
+/* Tape-measure lines: a fat invisible hit line under a visible one. */
+.tape {
+  stroke: #b42318;
+  stroke-width: 2;
+  pointer-events: none;
+}
+.tape-hit {
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: all;
+  cursor: move;
+}
+.area-layer .tape-hit { pointer-events: none; } /* preview / while dragging */
+.tape-dot { fill: #b42318; pointer-events: none; }
+.tape-end {
+  fill: #fff;
+  stroke: #b42318;
+  stroke-width: 1.5;
+  pointer-events: all;
+  cursor: move;
+}
+.area-plan text.tape-label,
+.area-layer text.tape-label { fill: #b42318; }
+
 .handle {
   fill: #fff;
   stroke: var(--accent);
@@ -446,6 +470,7 @@ input[type="range"] {
 }
 
 #area-btn.active,
+#dist-btn.active,
 #furniture-btn.active,
 #library-btn.active {
   background: var(--accent);
