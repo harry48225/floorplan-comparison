@@ -196,16 +196,24 @@ input[type="range"] {
   stroke-dasharray: 7 5;
   pointer-events: none;
 }
-/* Floating toolbars on the canvas */
+/* Floating toolbars on the canvas. The tools stack vertically so they stay
+   compact on narrow screens. */
 .tools-toolbar {
   position: absolute;
   right: 16px;
   top: 16px;
   z-index: 5;
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 138px;
   gap: 6px;
 }
-.tools-toolbar button { box-shadow: var(--shadow); }
+.tools-toolbar button {
+  box-shadow: var(--shadow);
+  text-align: left;
+  padding: 8px 12px;
+}
 
 /* Library button now lives in the right-hand tools toolbar (in flow). */
 .library-fab { box-shadow: var(--shadow); }
