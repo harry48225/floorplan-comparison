@@ -31,8 +31,10 @@ layer; the last is on top). Plans are added/removed at runtime; **always referen
 its object, never by a fixed index** (indices shift on add/remove).
 ```
 plan = { id, name, img, areaSvg, card, slider, layer, loaded, blob, objUrl,
-         tx, ty, scale, rotation, unitsPerPx, opacity, save }
+         tx, ty, scale, rotation, unitsPerPx, opacity, locked, save }
 ```
+Plans keep their load order in the stack — clicking one does **not** restack it (re-parenting
+a layer would invalidate its cached wall-filter and stutter the next drag).
 - Each plan owns its DOM, created in `addPlan()`: a `.layer` (its `<img>` + per-plan
   `<svg.area-plan>`) in `#layers`, and a `.card` (opacity slider + remove ✕) in `#cards`.
   `removePlan()` tears it down and drops its area boxes.
@@ -52,17 +54,24 @@ its natural-pixel coords and stage-relative screen coords. Most geometry goes th
 
 On loading an un-calibrated plan, the app drops straight into measuring it (`continueCalibration`
 finds the first loaded plan with `unitsPerPx == null`): draw a line along a known length (two
-clicks, snaps to H/V within 15°), enter the real length, then a **confirm** step shows it on
-the arrow and lets you pan/zoom to check (and tick **Save to library**) before committing. Esc
-restarts the line. Once ≥2 plans are calibrated, `matchAll()` rescales every plan to the first
+clicks, snaps to H/V within 15°, with a **loupe** — a circular magnifier cloning the measured
+plan's image — following the cursor for precision), enter the real length, then a **confirm**
+step shows it on the arrow and lets you pan/zoom to check (and tick **Save to library**) before
+committing. Esc restarts the line. Once ≥2 plans are calibrated, `matchAll()` rescales every plan to the first
 calibrated plan so equal real distances render at equal screen size. Library plans arrive
 pre-calibrated (stored `unitsPerPx`) and skip measuring.
 
 ## Interaction summary
 
 - **Load (adds a new plan each time):** paste (⌘V), drag-drop, or **Library → Add**. The
-  Rightmove bookmarklet (under **Rightmove ▾**) runs on the property page and copies the
-  floorplan URL to paste.
+  Rightmove bookmarklet (under **Rightmove ▾**, `grabFloorplan`) runs on the property page:
+  it finds the floorplan(s), shows the full-res image in an injected overlay with
+  "Right-click → Copy Image" instructions, and its button opens the app at `#paste` (a named
+  window, reused on repeat grabs), which shows a "press ⌘V" guide state (`pasteReady`).
+  Pasting the copied image delivers real bytes, so the plan is library-saveable — unlike a
+  pasted image *URL*, which still loads but can't be saved. The bookmarklet is serialised
+  with `toString()`, so it must stay self-contained and must contain **no `//` comments**
+  (bookmarking strips newlines from the `javascript:` URL).
 - **Library:** `storage.js` / IndexedDB. New file-loaded plans offer a **Save to library**
   checkbox in the confirm step (default on); `#lib-save` is a manual fallback for the selected
   plan. Stores image Blob + `unitsPerPx` + thumbnail. Add / rename / delete from the panel;
@@ -71,11 +80,22 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   a self-contained JSON file; image bytes as base64 data URLs) and **Import** (restore from
   such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
   See `PlanStore.exportAll` / `importAll`.
-- **Move a plan:** drag it. **Remove a plan from the canvas:** the ✕ on its card (does not
-  touch the library). **Pan the view:** drag empty canvas. **Zoom:** wheel or the +/− toolbar.
+- **Move a plan:** drag it, or **nudge the selected plan with the arrow keys** (1 screen px;
+  Shift = 10). **Remove a plan from the canvas:** the ✕ on its card (does not touch the
+  library; undoable via the toast). **Pan the view:** drag empty canvas. **Zoom:** wheel or
+  the +/− toolbar; **⛶ fits every plan in view**.
+- **Peek:** hold **Space** to hide the top plan and see what's underneath.
+- **Lock:** the padlock on a plan's card pins it — locked plans are click-through
+  (`pickPlan` skips them), so they can't be selected, dragged, or nudged.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
-- **Opacity:** per-plan slider on the card tucked into the plan's top-left corner.
+- **Opacity:** per-plan slider on the card tucked into the plan's top-left corner. The card
+  also shows a running total of the plan's measured rooms (`N rooms · X m²`).
+- **Tint:** the toolbar **Tint** toggle recolours each plan's dark lines a distinct hue
+  (per-plan `feColorMatrix` filters keyed by `plan.id`, generated at startup and applied via
+  `filter: url(#tint-i)`) so overlapping walls stay distinguishable.
+- **Undo:** removing a plan or deleting an area/tape/furniture shows a one-slot undo toast
+  (`offerUndo`, 8 s). Plan removal is a *soft* delete — DOM lingers hidden until finalized.
 - **Scale bar** (`#scale-bar`, bottom, left of the zoom buttons): a dynamic Google-Maps-style
   bar — one shared baseline with a metric tick + label above and an imperial tick + label below
   (measured from a shared right-hand origin) — redrawn each `render()` by `updateScaleBar()`.
@@ -87,6 +107,12 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   rotate + delete ×). Stored `{ kind:"area", plan, cx, cy, w, h, angle }` in the owning plan's
   natural-pixel coords. Dragging a box onto another plan re-anchors it (keeps on-screen
   size/angle).
+- **Tape measure** (next to Measure area): click two points for a point-to-point distance —
+  snaps to the plan's H/V axes within 15° (`planSnap`, in plan coords so it follows plan
+  rotation), auto-exits, and shows its length in metres. Stored alongside the boxes as
+  `{ kind:"tape", plan, ax, ay, bx, by }`; select to drag its endpoints or delete, drag the
+  line to move (re-anchors by its midpoint). The area and tape draw tools are mutually
+  exclusive.
 - **Furniture** (right-hand toolbar → **Furniture** palette): picking a catalogue item *arms*
   placement (`furnPlacing`) — a ghost follows the cursor and the next canvas click drops the
   real-world-sized piece, anchored to the plan under the cursor (Esc cancels). You can also
