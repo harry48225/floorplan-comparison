@@ -1124,6 +1124,16 @@
     plans.forEach((q) => {
       if (q.loaded) q.img.style.visibility = q === p ? "visible" : "hidden";
     });
+    // The loupe magnifies a clone of the measured plan's image, plus a mirror
+    // of the calibration overlay so the in-progress line shows inside it too.
+    loupeContent.innerHTML = "";
+    const clone = p.img.cloneNode(false);
+    clone.hidden = false;
+    clone.style.visibility = "visible";
+    clone.style.opacity = 1;
+    const mirror = document.createElementNS(SVGNS, "svg");
+    mirror.setAttribute("class", "loupe-calib");
+    loupeContent.append(clone, mirror);
     updateGuide();
   }
 
@@ -1134,8 +1144,38 @@
     calibSvg.innerHTML = "";
     calibSvg.classList.add("hidden");
     stage.classList.remove("measuring");
+    loupe.classList.add("hidden");
+    loupeContent.innerHTML = "";
     plans.forEach((q) => (q.img.style.visibility = "visible"));
     render();
+  }
+
+  // ---- Loupe: a magnified view around the cursor while placing calibration
+  // points, so the line can land precisely on the drawing's walls.
+  const loupe = document.getElementById("loupe");
+  const loupeContent = document.getElementById("loupe-content");
+  const LOUPE = 140; // matches .loupe width/height
+  const LOUPE_K = 2.5;
+  function updateLoupe(e) {
+    if (!calibrating() || calibPending) return;
+    const clone = loupeContent.firstChild;
+    if (!clone) return;
+    const r = stage.getBoundingClientRect();
+    const sx = e.clientX - r.left;
+    const sy = e.clientY - r.top;
+    // The view is frozen while measuring, but copy the live transform anyway.
+    clone.style.transform = calibPlan.img.style.transform;
+    const mirror = loupeContent.lastChild;
+    if (mirror !== clone) mirror.innerHTML = calibSvg.innerHTML;
+    loupeContent.style.transform =
+      `translate(${LOUPE / 2 - LOUPE_K * sx}px, ${LOUPE / 2 - LOUPE_K * sy}px) scale(${LOUPE_K})`;
+    let lx = sx + 10;
+    let ly = sy - LOUPE - 10;
+    if (ly < 8) ly = sy + 10;
+    if (lx + LOUPE > r.width - 8) lx = sx - LOUPE - 10;
+    loupe.style.left = lx + "px";
+    loupe.style.top = ly + "px";
+    loupe.classList.remove("hidden");
   }
 
   function ptFromEvent(e) {
@@ -1161,6 +1201,9 @@
     if (!calibrating() || calibPending || calibPts.length !== 1) return;
     drawLine(calibPts[0], snap(calibPts[0], ptFromEvent(e)));
   });
+  // After the preview redraws, so the loupe mirrors the fresh line.
+  calibSvg.addEventListener("pointermove", updateLoupe);
+  calibSvg.addEventListener("pointerleave", () => loupe.classList.add("hidden"));
 
   function drawLine(a, b, label) {
     if (!b) {
@@ -1185,6 +1228,7 @@
   }
 
   function finishMeasure() {
+    loupe.classList.add("hidden");
     const p = calibPlan;
     const [a, b] = calibPts;
     const screenLen = Math.hypot(b.x - a.x, b.y - a.y);

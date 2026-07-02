@@ -488,6 +488,57 @@ input[type="range"] {
   stroke-linejoin: round;
 }
 
+/* Magnifying loupe shown while placing calibration points. clip-path (not
+   just border-radius + overflow) so the compositor keeps the magnified,
+   constantly-transforming content clipped to the circle without flicker. */
+.loupe {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  background: #fff;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  clip-path: circle(50%);
+  pointer-events: none;
+  z-index: 5;
+}
+#loupe-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+#loupe-content img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  max-width: none;
+}
+/* Mirror of the calibration overlay inside the loupe (scaled with it). */
+.loupe-calib {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+}
+.loupe-calib line { stroke: var(--accent); stroke-width: 2.5; }
+.loupe-calib circle { fill: var(--accent); }
+.loupe-calib marker path { fill: var(--accent); }
+.loupe-calib text { display: none; }
+
+.loupe::before,
+.loupe::after {
+  content: "";
+  position: absolute;
+  background: var(--accent);
+  z-index: 1; /* above the magnified content — both crosshair bars always show */
+}
+.loupe::before { left: 50%; top: 30%; bottom: 30%; width: 1px; }
+.loupe::after { top: 50%; left: 30%; right: 30%; height: 1px; }
+
 .hint {
   position: absolute;
   left: 50%;
