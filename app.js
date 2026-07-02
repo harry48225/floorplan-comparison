@@ -1402,12 +1402,11 @@
     if (mirror !== clone) mirror.innerHTML = calibSvg.innerHTML;
     loupeContent.style.transform =
       `translate(${LOUPE / 2 - LOUPE_K * sx}px, ${LOUPE / 2 - LOUPE_K * sy}px) scale(${LOUPE_K})`;
-    let lx = sx + 10;
-    let ly = sy - LOUPE - 10;
-    if (ly < 8) ly = sy + 10;
-    if (lx + LOUPE > r.width - 8) lx = sx - LOUPE - 10;
-    loupe.style.left = lx + "px";
-    loupe.style.top = ly + "px";
+    // Centre the loupe on the pointer, so the magnified point sits under the
+    // crosshair exactly where you're aiming (its own crosshair coincides with
+    // the OS one). The circle is click-through, so it never blocks placement.
+    loupe.style.left = sx - LOUPE / 2 + "px";
+    loupe.style.top = sy - LOUPE / 2 + "px";
     loupe.classList.remove("hidden");
   }
 

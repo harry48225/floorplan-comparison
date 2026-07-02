@@ -567,16 +567,6 @@ input[type="range"] {
 .loupe-calib marker path { fill: var(--accent); }
 .loupe-calib text { display: none; }
 
-.loupe::before,
-.loupe::after {
-  content: "";
-  position: absolute;
-  background: var(--accent);
-  z-index: 1; /* above the magnified content — both crosshair bars always show */
-}
-.loupe::before { left: 50%; top: 30%; bottom: 30%; width: 1px; }
-.loupe::after { top: 50%; left: 30%; right: 30%; height: 1px; }
-
 .hint {
   position: absolute;
   left: 50%;
