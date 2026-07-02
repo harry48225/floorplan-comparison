@@ -1251,6 +1251,41 @@
   };
   document.getElementById("zoom-in").addEventListener("click", () => zoomCentre(1.2));
   document.getElementById("zoom-out").addEventListener("click", () => zoomCentre(1 / 1.2));
+
+  // Fit all: frame every loaded plan (their rotated corners, in world space).
+  document.getElementById("zoom-fit").addEventListener("click", () => {
+    const loaded = plans.filter((p) => p.loaded);
+    if (!loaded.length) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    loaded.forEach((p) => {
+      const a = (p.rotation * Math.PI) / 180;
+      const cos = Math.cos(a);
+      const sin = Math.sin(a);
+      const W = p.img.naturalWidth;
+      const H = p.img.naturalHeight;
+      [[0, 0], [W, 0], [W, H], [0, H]].forEach(([nx, ny]) => {
+        const wx = p.tx + p.scale * (cos * nx - sin * ny);
+        const wy = p.ty + p.scale * (sin * nx + cos * ny);
+        minX = Math.min(minX, wx);
+        minY = Math.min(minY, wy);
+        maxX = Math.max(maxX, wx);
+        maxY = Math.max(maxY, wy);
+      });
+    });
+    const r = stage.getBoundingClientRect();
+    const s = clamp(
+      Math.min((r.width * 0.92) / (maxX - minX), (r.height * 0.92) / (maxY - minY)),
+      0.1,
+      10
+    );
+    view.scale = s;
+    view.x = (r.width - (maxX - minX) * s) / 2 - minX * s;
+    view.y = (r.height - (maxY - minY) * s) / 2 - minY * s;
+    render();
+  });
   areaBtn.addEventListener("click", () => setAreaTool(!areaTool));
 
   // Add plan: show the "add a plan" prompt (paste / drop / choose file / Library).
