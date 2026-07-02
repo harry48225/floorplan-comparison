@@ -31,7 +31,7 @@ layer; the last is on top). Plans are added/removed at runtime; **always referen
 its object, never by a fixed index** (indices shift on add/remove).
 ```
 plan = { id, name, img, areaSvg, card, slider, layer, loaded, blob, objUrl,
-         tx, ty, scale, rotation, unitsPerPx, opacity, locked, save }
+         tx, ty, scale, rotation, unitsPerPx, opacity, locked, tint, save }
 ```
 Plans keep their load order in the stack — clicking one does **not** restack it (re-parenting
 a layer would invalidate its cached wall-filter and stutter the next drag).
@@ -91,9 +91,12 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
 - **Opacity:** per-plan slider on the card tucked into the plan's top-left corner. The card
   also shows a running total of the plan's measured rooms (`N rooms · X m²`).
-- **Tint:** the toolbar **Tint** toggle recolours each plan's dark lines a distinct hue
-  (per-plan `feColorMatrix` filters keyed by `plan.id`, generated at startup and applied via
-  `filter: url(#tint-i)`) so overlapping walls stay distinguishable.
+- **Tint:** the toolbar **Tint** button opens a panel with one row per plan — pick a palette
+  colour or none (`p.tint` = palette index | null; first open auto-assigns distinct colours).
+  SVG filters (generated at startup, applied via `filter: url(#tint-i)`) recolour **only the
+  walls**: a dark-pixel alpha mask is morphologically opened (erode→dilate, radius 1, in
+  natural-px user space) so thin dark features — room labels, dimension lines — drop out, then
+  flood colour is composited `in` the mask over the untouched original (`out` the mask).
 - **Undo:** removing a plan or deleting an area/tape/furniture shows a one-slot undo toast
   (`offerUndo`, 8 s). Plan removal is a *soft* delete — DOM lingers hidden until finalized.
 - **Scale bar** (`#scale-bar`, bottom, left of the zoom buttons): a dynamic Google-Maps-style

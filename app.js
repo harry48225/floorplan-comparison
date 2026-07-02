@@ -175,6 +175,7 @@
       unitsPerPx: null,
       opacity,
       locked: false, // pinned: not pickable/draggable until unlocked
+      tint: null, // palette index into TINTS, or null for no tint
       save: !!opts.save,
     };
     slider.value = opacity * 100;
@@ -359,6 +360,7 @@
         `translate(${view.x}px, ${view.y}px) scale(${view.scale}) ` +
         `translate(${p.tx}px, ${p.ty}px) rotate(${p.rotation}deg) scale(${p.scale})`;
       p.img.style.opacity = p.opacity;
+      p.img.style.filter = p.tint != null ? `url(#tint-${p.tint})` : "";
       if (!calibrating()) p.img.style.visibility = peeking && p === topLoaded ? "hidden" : "visible";
       positionCard(p);
     });
@@ -386,6 +388,7 @@
       }
     }
 
+    tintBtn.classList.toggle("active", plans.some((p) => p.tint != null));
     updateGuide();
     updateScaleBar();
   }
@@ -1029,7 +1032,8 @@
 
   function openFurniture() {
     if (!furnGrid.childElementCount) buildFurniturePalette();
-    closeLibrary(); // the two right-hand panels are mutually exclusive
+    closeLibrary(); // the right-hand panels are mutually exclusive
+    closeTint();
     furniturePanel.classList.remove("hidden");
     furnitureBtn.classList.add("active");
   }
@@ -1553,6 +1557,98 @@
   areaBtn.addEventListener("click", () => setAreaTool(!areaTool));
   distBtn.addEventListener("click", () => setDistTool(!distTool));
 
+  // ---- Tint: recolour a plan's walls a chosen hue ----
+  // Filter chain per colour: build a "dark pixels" mask, then a morphological
+  // opening (erode → dilate) drops thin dark features (text, dimension lines)
+  // so only thick strokes — the walls — stay in the mask. Output = flood
+  // colour where the mask is, the untouched original everywhere else. Plans
+  // reference them via CSS filter:url(#tint-i); p.tint is an index or null.
+  const TINTS = [
+    { name: "Red", hex: "#d7263d" },
+    { name: "Blue", hex: "#1d4ed8" },
+    { name: "Green", hex: "#0e9f6e" },
+    { name: "Orange", hex: "#d97706" },
+    { name: "Purple", hex: "#7c3aed" },
+  ];
+  const tintBtn = document.getElementById("tint-btn");
+  const tintPop = document.getElementById("tint-pop");
+  const tintRows = document.getElementById("tint-rows");
+  {
+    const defs = document.createElementNS(SVGNS, "svg");
+    defs.setAttribute("width", 0);
+    defs.setAttribute("height", 0);
+    defs.setAttribute("aria-hidden", "true");
+    defs.style.position = "absolute";
+    // Darkness (1 − luminance, alpha-aware) into the alpha channel: opaque
+    // dark pixels → 1, light or transparent pixels → 0.
+    const dark = "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -0.2126 -0.7152 -0.0722 1 0";
+    // Steep threshold: only quite-dark pixels (luminance < ~0.25) enter the mask.
+    const steep = '<feFuncA type="table" tableValues="0 0 0 0 0 0 0 0.5 1 1 1"></feFuncA>';
+    defs.innerHTML = TINTS.map(
+      ({ hex }, i) =>
+        `<filter id="tint-${i}" color-interpolation-filters="sRGB">` +
+        `<feColorMatrix type="matrix" values="${dark}"></feColorMatrix>` +
+        `<feComponentTransfer>${steep}</feComponentTransfer>` +
+        `<feMorphology operator="erode" radius="1"></feMorphology>` +
+        `<feMorphology operator="dilate" radius="1" result="mask"></feMorphology>` +
+        `<feFlood flood-color="${hex}" result="col"></feFlood>` +
+        `<feComposite in="col" in2="mask" operator="in" result="walls"></feComposite>` +
+        `<feComposite in="SourceGraphic" in2="mask" operator="out" result="rest"></feComposite>` +
+        `<feMerge><feMergeNode in="rest"></feMergeNode><feMergeNode in="walls"></feMergeNode></feMerge>` +
+        `</filter>`
+    ).join("");
+    document.body.appendChild(defs);
+  }
+
+  // The Tint panel: one row per loaded plan — its name, a "no tint" swatch,
+  // and the palette. Choices apply immediately.
+  function renderTintRows() {
+    const rows = plans
+      .filter((p) => p.loaded)
+      .map((p) => {
+        const swatches = TINTS.map(
+          (t, i) =>
+            `<button class="swatch${p.tint === i ? " on" : ""}" data-plan="${p.id}"` +
+            ` data-tint="${i}" title="${t.name}" aria-label="${t.name}"` +
+            ` style="background:${t.hex}"></button>`
+        ).join("");
+        return (
+          `<div class="tint-row"><span class="tint-name">${escapeHtml(p.name)}</span>` +
+          `<button class="swatch none${p.tint == null ? " on" : ""}" data-plan="${p.id}"` +
+          ` title="No tint" aria-label="No tint">✕</button>${swatches}</div>`
+        );
+      })
+      .join("");
+    tintRows.innerHTML = rows || '<p class="tint-empty">Load a plan first.</p>';
+  }
+  tintRows.addEventListener("click", (e) => {
+    const btn = e.target.closest(".swatch");
+    if (!btn) return;
+    const p = plans.find((q) => q.id === Number(btn.dataset.plan));
+    if (!p) return;
+    p.tint = btn.dataset.tint == null ? null : Number(btn.dataset.tint);
+    renderTintRows();
+    render();
+  });
+  function openTint() {
+    closeLibrary();
+    closeFurniture();
+    // First open with nothing tinted: start each plan on a distinct colour.
+    if (!plans.some((p) => p.tint != null))
+      plans.filter((p) => p.loaded).forEach((p, i) => (p.tint = i % TINTS.length));
+    renderTintRows();
+    tintPop.classList.remove("hidden");
+    render();
+  }
+  function closeTint() {
+    tintPop.classList.add("hidden");
+  }
+  tintBtn.addEventListener("click", () => {
+    if (tintPop.classList.contains("hidden")) openTint();
+    else closeTint();
+  });
+  document.getElementById("tint-close").addEventListener("click", closeTint);
+
   // Add plan: show the "add a plan" prompt (paste / drop / choose file / Library).
   const addPlanInput = document.getElementById("add-plan-input");
   document.getElementById("add-plan").addEventListener("click", () => {
@@ -1844,7 +1940,8 @@
   });
 
   function openLibrary() {
-    closeFurniture(); // the two right-hand panels are mutually exclusive
+    closeFurniture(); // the right-hand panels are mutually exclusive
+    closeTint();
     libraryPanel.classList.remove("hidden");
     libraryBtn.classList.add("active");
     refreshLibrary();
@@ -1947,6 +2044,8 @@
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
       closeFurniture();
+    } else if (!tintPop.classList.contains("hidden")) {
+      closeTint();
     } else if (addingPlan || pasteReady) {
       addingPlan = false;
       pasteReady = false;
