@@ -91,12 +91,13 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
 - **Opacity:** per-plan slider on the card tucked into the plan's top-left corner. The card
   also shows a running total of the plan's measured rooms (`N rooms · X m²`).
-- **Tint:** the toolbar **Tint** button opens a panel with one row per plan — pick a palette
-  colour or none (`p.tint` = palette index | null; first open auto-assigns distinct colours).
-  SVG filters (generated at startup, applied via `filter: url(#tint-i)`) recolour **only the
-  walls**: a dark-pixel alpha mask is morphologically opened (erode→dilate, radius 1, in
-  natural-px user space) so thin dark features — room labels, dimension lines — drop out, then
-  flood colour is composited `in` the mask over the untouched original (`out` the mask).
+- **Tint:** every new plan auto-takes the least-used palette colour (`p.tint` = index into
+  `TINTS` | null, assigned in `addPlan`). The coloured dot on the plan's card opens an inline
+  swatch row (5 colours + ✕ none) to change or disable it. SVG filters (generated at startup,
+  applied via `filter: url(#tint-i)`) recolour **only the walls**: a dark-pixel alpha mask is
+  morphologically opened (erode→dilate, radius 1, in natural-px user space) so thin dark
+  features — room labels, dimension lines — drop out, then flood colour is composited `in`
+  the mask over the untouched original (`out` the mask).
 - **Undo:** removing a plan or deleting an area/tape/furniture shows a one-slot undo toast
   (`offerUndo`, 8 s). Plan removal is a *soft* delete — DOM lingers hidden until finalized.
 - **Scale bar** (`#scale-bar`, bottom, left of the zoom buttons): a dynamic Google-Maps-style

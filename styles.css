@@ -485,7 +485,6 @@ input[type="range"] {
 #area-btn.active,
 #dist-btn.active,
 #furniture-btn.active,
-#tint-btn.active,
 #library-btn.active {
   background: var(--accent);
   border-color: var(--accent);
@@ -786,51 +785,25 @@ kbd {
 .furn-item-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
 .furn-item-dim { font-size: 11px; color: var(--muted); }
 
-/* Tint panel: one row per plan — name, "no tint", palette swatches. */
-.tint-pop {
-  position: absolute;
-  top: 64px;
-  right: 16px;
-  z-index: 11;
-  width: 280px;
-  max-width: calc(100vw - 32px);
-  background: var(--surface);
+/* Per-plan tint picker on the card: a dot showing the tint + a swatch row. */
+.card-tint {
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  flex: none;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(16, 24, 40, .16);
-  overflow: hidden;
+  border-radius: 50%;
 }
-.tint-head {
-  display: flex;
+.card-tint-row {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-}
-.tint-head strong { margin-right: auto; }
-#tint-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-}
-.tint-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.tint-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  gap: 4px;
+  pointer-events: auto;
 }
 .swatch {
-  width: 22px;
-  height: 22px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   flex: none;
   border: 2px solid transparent;
@@ -843,11 +816,10 @@ kbd {
   background: #fff;
   border: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1;
 }
 .swatch.none.on { border: 2px solid var(--text); }
-.tint-empty { margin: 4px 2px; color: var(--muted); }
 
 /* About modal */
 .modal {

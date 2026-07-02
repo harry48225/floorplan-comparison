@@ -134,6 +134,20 @@
     saveBtn.type = "button";
     saveBtn.innerHTML = '<span class="card-dot"></span>Save to library';
     saveBtn.title = "This plan isn't saved — click to add it to your library";
+    const tintBtn = document.createElement("button");
+    tintBtn.className = "card-tint";
+    tintBtn.type = "button";
+    tintBtn.title = "Change this plan's tint";
+    tintBtn.setAttribute("aria-label", "Change this plan's tint");
+    const tintRow = document.createElement("span");
+    tintRow.className = "card-tint-row hidden";
+    tintRow.innerHTML =
+      '<button class="swatch none" data-tint="" type="button" title="No tint" aria-label="No tint">✕</button>' +
+      TINTS.map(
+        (t, k) =>
+          `<button class="swatch" data-tint="${k}" type="button" title="${t.name}"` +
+          ` aria-label="${t.name}" style="background:${t.hex}"></button>`
+      ).join("");
     const lockBtn = document.createElement("button");
     lockBtn.className = "card-lock";
     lockBtn.type = "button";
@@ -145,8 +159,11 @@
     del.type = "button";
     del.textContent = "✕";
     del.title = "Remove this plan from the comparison";
-    card.append(nameEl, totalEl, slider, recalBtn, showBtn, saveBtn, lockBtn, del);
+    card.append(nameEl, totalEl, slider, recalBtn, showBtn, saveBtn, tintBtn, tintRow, lockBtn, del);
     cardsEl.appendChild(card);
+
+    // Auto-tint: give the new plan the least-used palette colour.
+    const tintCounts = TINTS.map((_, k) => plans.reduce((n, q) => n + (q.tint === k), 0));
 
     const opacity = opts.opacity != null ? opts.opacity : plans.length === 0 ? 1 : 0.6;
     const p = {
@@ -161,6 +178,7 @@
       saveBtn,
       recalBtn,
       showBtn,
+      tintBtn,
       layer,
       loaded: false,
       blob: null,
@@ -175,7 +193,7 @@
       unitsPerPx: null,
       opacity,
       locked: false, // pinned: not pickable/draggable until unlocked
-      tint: null, // palette index into TINTS, or null for no tint
+      tint: tintCounts.indexOf(Math.min(...tintCounts)), // TINTS index | null
       save: !!opts.save,
     };
     slider.value = opacity * 100;
@@ -200,6 +218,21 @@
     showBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     showBtn.addEventListener("click", () => {
       showCalibFor = showCalibFor === p ? null : p;
+      render();
+    });
+    tintBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    tintBtn.addEventListener("click", () => {
+      [...tintRow.children].forEach((b) =>
+        b.classList.toggle("on", (b.dataset.tint === "" ? null : Number(b.dataset.tint)) === p.tint)
+      );
+      tintRow.classList.toggle("hidden");
+    });
+    tintRow.addEventListener("pointerdown", (e) => e.stopPropagation());
+    tintRow.addEventListener("click", (e) => {
+      const btn = e.target.closest(".swatch");
+      if (!btn) return;
+      p.tint = btn.dataset.tint === "" ? null : Number(btn.dataset.tint);
+      tintRow.classList.add("hidden");
       render();
     });
     lockBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
@@ -457,6 +490,9 @@
     p.showBtn.classList.toggle("hidden", !p.calibLine);
     p.showBtn.textContent = showCalibFor === p ? "Hide calibration" : "Show calibration";
     p.saveBtn.classList.toggle("hidden", !(canSave(p) && p.unitsPerPx != null));
+
+    p.tintBtn.style.background = p.tint != null ? TINTS[p.tint].hex : "#fff";
+    p.tintBtn.classList.toggle("none", p.tint == null);
 
     // Running total of this plan's measured rooms (area boxes, not furniture).
     const rooms = areas.filter((a) => a.plan === p && a.kind === "area");
@@ -1033,7 +1069,6 @@
   function openFurniture() {
     if (!furnGrid.childElementCount) buildFurniturePalette();
     closeLibrary(); // the right-hand panels are mutually exclusive
-    closeTint();
     furniturePanel.classList.remove("hidden");
     furnitureBtn.classList.add("active");
   }
@@ -1570,9 +1605,6 @@
     { name: "Orange", hex: "#d97706" },
     { name: "Purple", hex: "#7c3aed" },
   ];
-  const tintBtn = document.getElementById("tint-btn");
-  const tintPop = document.getElementById("tint-pop");
-  const tintRows = document.getElementById("tint-rows");
   {
     const defs = document.createElementNS(SVGNS, "svg");
     defs.setAttribute("width", 0);
@@ -1600,72 +1632,15 @@
     document.body.appendChild(defs);
   }
 
-  // The Tint panel: one row per loaded plan — its name, a "no tint" swatch,
-  // and the palette. Choices apply immediately.
-  function renderTintRows() {
-    const rows = plans
-      .filter((p) => p.loaded)
-      .map((p) => {
-        const swatches = TINTS.map(
-          (t, i) =>
-            `<button class="swatch${p.tint === i ? " on" : ""}" data-plan="${p.id}"` +
-            ` data-tint="${i}" title="${t.name}" aria-label="${t.name}"` +
-            ` style="background:${t.hex}"></button>`
-        ).join("");
-        return (
-          `<div class="tint-row"><span class="tint-name">${escapeHtml(p.name)}</span>` +
-          `<button class="swatch none${p.tint == null ? " on" : ""}" data-plan="${p.id}"` +
-          ` title="No tint" aria-label="No tint">✕</button>${swatches}</div>`
-        );
-      })
-      .join("");
-    tintRows.innerHTML = rows || '<p class="tint-empty">Load a plan first.</p>';
-  }
-  tintRows.addEventListener("click", (e) => {
-    const btn = e.target.closest(".swatch");
-    if (!btn) return;
-    const p = plans.find((q) => q.id === Number(btn.dataset.plan));
-    if (!p) return;
-    p.tint = btn.dataset.tint == null ? null : Number(btn.dataset.tint);
-    renderTintRows();
-    render();
-  });
-  function openTint() {
-    closeLibrary();
-    closeFurniture();
-    // First open with nothing tinted: start each plan on a distinct colour.
-    if (!plans.some((p) => p.tint != null))
-      plans.filter((p) => p.loaded).forEach((p, i) => (p.tint = i % TINTS.length));
-    renderTintRows();
-    tintPop.classList.remove("hidden");
-    tintBtn.classList.add("active");
-    render();
-  }
-  function closeTint() {
-    tintPop.classList.add("hidden");
-    tintBtn.classList.remove("active");
-  }
-  tintBtn.addEventListener("click", () => {
-    if (tintPop.classList.contains("hidden")) openTint();
-    else closeTint();
-  });
-  document.getElementById("tint-close").addEventListener("click", closeTint);
-
   // Clicking anywhere outside an open panel closes it (each panel's own
   // toggle button still handles itself). The click that places a furniture
   // piece — or arms one, while a ghost is still following the cursor — keeps
   // the palette open for placing more. Membership uses composedPath, not
-  // contains: clicking a control that re-renders its panel (tint swatches,
-  // library actions) detaches the target before this handler runs.
+  // contains: clicking a control that re-renders its panel (library actions)
+  // detaches the target before this handler runs.
   let furnJustPlaced = false;
   document.addEventListener("click", (e) => {
     const path = e.composedPath();
-    if (
-      !tintPop.classList.contains("hidden") &&
-      !path.includes(tintPop) &&
-      e.target !== tintBtn
-    )
-      closeTint();
     const placing = furnJustPlaced || !!furnPlacing;
     furnJustPlaced = false;
     if (
@@ -1975,7 +1950,6 @@
 
   function openLibrary() {
     closeFurniture(); // the right-hand panels are mutually exclusive
-    closeTint();
     libraryPanel.classList.remove("hidden");
     libraryBtn.classList.add("active");
     refreshLibrary();
@@ -2078,8 +2052,6 @@
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
       closeFurniture();
-    } else if (!tintPop.classList.contains("hidden")) {
-      closeTint();
     } else if (addingPlan || pasteReady) {
       addingPlan = false;
       pasteReady = false;
