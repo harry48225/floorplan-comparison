@@ -40,6 +40,7 @@
 
   let selectedPlan = null; // plan object showing its rotate handle, or null
   let planRotating = false; // dragging a plan's rotate knob
+  let peeking = false; // holding Space — top plan hidden to peek underneath
   let addingPlan = false; // showing the "add a plan" prompt on demand
   let pasteReady = false; // opened via the bookmarklet's #paste — prompting for ⌘V
 
@@ -296,12 +297,16 @@
     stage.classList.toggle("confirming", !!calibPending);
     stage.classList.toggle("placing", !!furnPlacing);
 
+    // Holding Space hides the top plan to peek at what's underneath. (While
+    // measuring, beginMeasure owns visibility — leave it alone.)
+    const topLoaded = plans.filter((p) => p.loaded).pop();
     plans.forEach((p) => {
       if (!p.loaded) return;
       p.img.style.transform =
         `translate(${view.x}px, ${view.y}px) scale(${view.scale}) ` +
         `translate(${p.tx}px, ${p.ty}px) rotate(${p.rotation}deg) scale(${p.scale})`;
       p.img.style.opacity = p.opacity;
+      if (!calibrating()) p.img.style.visibility = peeking && p === topLoaded ? "hidden" : "visible";
       positionCard(p);
     });
 
@@ -506,6 +511,9 @@
     selected = null;
     selectedPlan = p; // clicking a plan selects it; empty canvas deselects
     addingPlan = false; // clicking the canvas dismisses the add prompt
+    // Note: clicking a plan does NOT restack it. Re-parenting its layer to the
+    // top invalidates the cached wall-filter layer, which caused a stutter at
+    // the start of every drag. Plans keep their load order; drag stays smooth.
     render();
     startDrag(e, p ? { kind: "plan", plan: p } : { kind: "view" });
   });
@@ -1642,6 +1650,25 @@
       selectedPlan = null;
       render();
     }
+  });
+
+  // Hold Space to peek under the top plan.
+  document.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || e.repeat || peeking) return;
+    if (e.target !== document.body || calibrating()) return;
+    e.preventDefault();
+    peeking = true;
+    render();
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.code !== "Space" || !peeking) return;
+    peeking = false;
+    render();
+  });
+  window.addEventListener("blur", () => {
+    if (!peeking) return;
+    peeking = false;
+    render();
   });
 
   document.addEventListener("paste", (e) => {
