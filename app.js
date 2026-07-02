@@ -41,6 +41,7 @@
   let selectedPlan = null; // plan object showing its rotate handle, or null
   let planRotating = false; // dragging a plan's rotate knob
   let addingPlan = false; // showing the "add a plan" prompt on demand
+  let pasteReady = false; // opened via the bookmarklet's #paste — prompting for ⌘V
 
   // Calibration: idle -> measuring a plan -> confirm pending -> applied.
   let calibPlan = null; // plan object being measured, or null
@@ -85,7 +86,8 @@
 
   // ---- Plan lifecycle ----
   function addPlan(opts = {}) {
-    addingPlan = false; // a plan is being added; dismiss the prompt
+    addingPlan = false; // a plan is being added; dismiss the prompts
+    pasteReady = false;
     const id = nextId++;
     const layer = document.createElement("div");
     layer.className = "layer";
@@ -423,6 +425,9 @@
     } else if (calibrating()) {
       title = `Set the scale of ${calibPlan.name}`;
       body = "Draw a line along a known length (e.g. a labelled wall), then enter its real length. Press Esc to start the line over.";
+    } else if (pasteReady) {
+      title = "Paste your floorplan";
+      body = "Press ⌘V / Ctrl+V to add the floorplan you copied. Esc to cancel.";
     } else if (addingPlan || !plans.some((p) => p.loaded)) {
       adding = true;
       title = plans.some((p) => p.loaded) ? "Add another floor plan" : "Add your first floor plan";
@@ -1234,12 +1239,18 @@
   });
 
   // ---- "Grab Floorplan" bookmarklet ----
-  function grabFloorplan() {
+  // Runs on the property page: finds the floorplan(s) (PAGE_MODEL on older
+  // pages, an HTML scan otherwise), shows the full-res image in an overlay
+  // with copy instructions, and opens the app at #paste (which prompts for
+  // the ⌘V). Serialised via toString(), so it must be fully self-contained —
+  // and must contain no // comments, because bookmarking the javascript: URL
+  // strips its newlines, which would turn the rest of the code into a comment.
+  function grabFloorplan(app) {
     try {
       var u = [];
-      var p = window.PAGE_MODEL;
-      if (p && p.propertyData && p.propertyData.floorplans) {
-        p.propertyData.floorplans.forEach(function (f) {
+      var pm = window.PAGE_MODEL;
+      if (pm && pm.propertyData && pm.propertyData.floorplans) {
+        pm.propertyData.floorplans.forEach(function (f) {
           if (f && f.url) u.push(f.url);
         });
       }
@@ -1249,29 +1260,98 @@
           m;
         while ((m = re.exec(h))) u.push(m[0]);
       }
-      if (!u.length) {
+      var byFile = {};
+      u.forEach(function (x) {
+        x = x.replace(/_max_\d+x\d+/i, "");
+        var f = x.split("/").pop();
+        if (!byFile[f] || byFile[f].indexOf("/dir/") !== -1) byFile[f] = x;
+      });
+      var found = Object.keys(byFile).map(function (f) {
+        return byFile[f];
+      });
+      if (!found.length) {
         alert("No floorplan found on this page.");
         return;
       }
-      var b =
-        u.find(function (x) {
-          return !/_max_\d+x\d+/i.test(x);
-        }) || u[0].replace(/_max_\d+x\d+/i, "");
-      var done = function () {
-        alert("Floorplan URL copied — switch to Floor Plan Overlay and press Cmd/Ctrl+V.");
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(b).then(done, function () {
-          prompt("Copy this floorplan URL:", b);
+      var old = document.getElementById("fpo-grab");
+      if (old) old.remove();
+      var wrap = document.createElement("div");
+      wrap.id = "fpo-grab";
+      wrap.setAttribute("role", "dialog");
+      wrap.setAttribute("aria-modal", "true");
+      wrap.setAttribute("aria-label", "Grab floorplan");
+      wrap.style.cssText =
+        "position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.85);" +
+        "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+        "gap:14px;padding:20px;font:14px/1.4 system-ui,sans-serif;";
+      var bar = document.createElement("div");
+      bar.style.cssText =
+        "display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;" +
+        "background:#fff;color:#0f172a;padding:10px 14px;border-radius:10px;max-width:92vw;";
+      var msg = document.createElement("strong");
+      msg.textContent = "Right-click the plan → Copy Image, then";
+      var openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.textContent = "Open Floor Plan Overlay";
+      openBtn.style.cssText =
+        "font:inherit;font-weight:600;padding:6px 12px;border:0;border-radius:8px;" +
+        "background:#2563eb;color:#fff;cursor:pointer;";
+      var closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.setAttribute("aria-label", "Close");
+      closeBtn.textContent = "✕";
+      closeBtn.style.cssText =
+        "font:inherit;padding:6px 10px;border:0;border-radius:8px;" +
+        "background:#e2e8f0;color:#0f172a;cursor:pointer;";
+      bar.append(msg, openBtn, closeBtn);
+      var img = document.createElement("img");
+      img.src = found[0];
+      img.alt = "Floorplan";
+      img.style.cssText =
+        "max-width:92vw;max-height:72vh;background:#fff;border-radius:10px;object-fit:contain;";
+      wrap.append(bar, img);
+      if (found.length > 1) {
+        var thumbs = document.createElement("div");
+        thumbs.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;justify-content:center;";
+        found.forEach(function (x, i) {
+          var t = document.createElement("button");
+          t.type = "button";
+          t.textContent = "Plan " + (i + 1);
+          t.style.cssText =
+            "font:inherit;padding:6px 12px;border:0;border-radius:8px;background:#e2e8f0;cursor:pointer;";
+          t.onclick = function () {
+            img.src = x;
+          };
+          thumbs.appendChild(t);
         });
-      } else {
-        prompt("Copy this floorplan URL:", b);
+        wrap.appendChild(thumbs);
       }
+      var close = function () {
+        wrap.remove();
+        document.removeEventListener("keydown", onKey);
+      };
+      var onKey = function (e) {
+        if (e.key === "Escape") close();
+      };
+      document.addEventListener("keydown", onKey);
+      closeBtn.onclick = close;
+      wrap.onclick = function (e) {
+        if (e.target === wrap) close();
+      };
+      openBtn.onclick = function () {
+        var w = window.open(app + "#paste", "floorplan-overlay");
+        if (w) w.focus();
+        else alert("Popup blocked — switch to Floor Plan Overlay yourself and press Cmd/Ctrl+V.");
+      };
+      document.body.appendChild(wrap);
+      openBtn.focus();
     } catch (e) {
       alert("Bookmarklet error: " + e.message);
     }
   }
-  const BOOKMARKLET = "javascript:(" + grabFloorplan.toString() + ")();";
+  const APP_URL = location.href.split(/[#?]/)[0];
+  const BOOKMARKLET =
+    "javascript:(" + grabFloorplan.toString() + ")(" + JSON.stringify(APP_URL) + ");";
   const helpBtn = document.getElementById("help-btn");
   const helpPop = document.getElementById("help");
   const bmLink = document.getElementById("bm");
@@ -1540,8 +1620,9 @@
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
       closeFurniture();
-    } else if (addingPlan) {
+    } else if (addingPlan || pasteReady) {
       addingPlan = false;
+      pasteReady = false;
       render();
     } else if (calibrating()) {
       // Mid-line: just cancel the line. No line yet: cancel a recalibration
@@ -1589,6 +1670,19 @@
     stage.classList.remove("dragover");
     for (const f of e.dataTransfer.files) loadFile(f);
   });
+
+  // Opened via the bookmarklet's "Open Floor Plan Overlay" button: #paste
+  // prompts for the floorplan on the clipboard. The hash is cleared straight
+  // away so a later grab into this same (named) window re-fires hashchange.
+  function checkPasteHash() {
+    if (location.hash !== "#paste") return;
+    history.replaceState(null, "", location.pathname + location.search);
+    pasteReady = true;
+    addingPlan = false;
+    render();
+  }
+  window.addEventListener("hashchange", checkPasteHash);
+  checkPasteHash();
 
   render();
 })();
