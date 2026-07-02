@@ -587,6 +587,33 @@ input[type="range"] {
   pointer-events: none;
 }
 
+/* Undo toast: like a hint, plus an action button. */
+.undo-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--text);
+  color: #fff;
+  padding: 6px 8px 6px 16px;
+  border-radius: 16px;
+  font-size: 13px;
+  z-index: 6;
+  box-shadow: var(--shadow);
+}
+.undo-toast button {
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: transparent;
+  border-color: rgba(255, 255, 255, .5);
+  color: #fff;
+  font-weight: 600;
+}
+.undo-toast button:hover { background: rgba(255, 255, 255, .12); }
+
 /* Help popover + bookmarklet */
 .help-pop {
   position: absolute;

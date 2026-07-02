@@ -221,17 +221,42 @@
     return p;
   }
 
+  // Soft-remove: the plan leaves the stack but its DOM lingers (hidden) so the
+  // undo toast can bring it straight back; finalize tears it down for real.
   function removePlan(p) {
     if (calibPlan === p) endMeasure();
-    if (p.objUrl) URL.revokeObjectURL(p.objUrl);
-    p.layer.remove();
-    p.card.remove();
     const idx = plans.indexOf(p);
     if (idx >= 0) plans.splice(idx, 1);
-    for (let k = areas.length - 1; k >= 0; k--) if (areas[k].plan === p) areas.splice(k, 1);
+    const boxes = [];
+    for (let k = areas.length - 1; k >= 0; k--)
+      if (areas[k].plan === p) boxes.unshift(...areas.splice(k, 1));
     if (selectedPlan === p) selectedPlan = null;
     if (showCalibFor === p) showCalibFor = null;
     selected = null;
+    p.layer.style.display = "none";
+    p.card.style.display = "none";
+    const finalize = () => {
+      if (p.objUrl) URL.revokeObjectURL(p.objUrl);
+      p.layer.remove();
+      p.card.remove();
+    };
+    if (!p.loaded) {
+      finalize(); // a failed load: nothing worth restoring
+    } else {
+      offerUndo(
+        `Removed “${p.name}”`,
+        () => {
+          plans.push(p); // restored on top (the stack may have shifted since)
+          layersEl.appendChild(p.layer);
+          p.layer.style.display = "";
+          p.card.style.display = "";
+          areas.push(...boxes);
+          render();
+          continueCalibration();
+        },
+        finalize
+      );
+    }
     render();
     continueCalibration(); // a still-uncalibrated plan may now need measuring
   }
@@ -531,6 +556,7 @@
       areaTool ||
       distTool ||
       e.target.closest("#guide") ||
+      e.target.closest("#undo-toast") ||
       e.target.closest(".card") ||
       e.target.closest(".zoom-toolbar") ||
       e.target.closest(".tools-toolbar") ||
@@ -1073,8 +1099,14 @@
     const sx = e.clientX - r.left;
     const sy = e.clientY - r.top;
     if (t.classList.contains("del")) {
-      areas.splice(k, 1);
+      const [box] = areas.splice(k, 1);
       selected = null;
+      const what =
+        box.kind === "furniture" ? box.label : box.kind === "tape" ? "tape measure" : "area";
+      offerUndo(`Removed ${what}`, () => {
+        areas.splice(Math.min(k, areas.length), 0, box);
+        render();
+      });
       render();
       return;
     }
@@ -1437,6 +1469,32 @@
     else if (wantSave) saveToLibrary(p);
     continueCalibration();
   }
+
+  // ---- Undo (one slot): offer to reverse the last destructive action ----
+  const undoToast = document.getElementById("undo-toast");
+  const undoText = document.getElementById("undo-text");
+  let pendingUndo = null; // { undo, finalize, timer }
+  function offerUndo(text, undo, finalize) {
+    finalizeUndo(); // only one undo at a time — commit any previous one
+    undoText.textContent = text;
+    undoToast.classList.remove("hidden");
+    pendingUndo = { undo, finalize, timer: setTimeout(finalizeUndo, 8000) };
+  }
+  function finalizeUndo() {
+    if (!pendingUndo) return;
+    clearTimeout(pendingUndo.timer);
+    if (pendingUndo.finalize) pendingUndo.finalize();
+    pendingUndo = null;
+    undoToast.classList.add("hidden");
+  }
+  document.getElementById("undo-btn").addEventListener("click", () => {
+    if (!pendingUndo) return;
+    clearTimeout(pendingUndo.timer);
+    const u = pendingUndo.undo;
+    pendingUndo = null;
+    undoToast.classList.add("hidden");
+    u();
+  });
 
   // ---- Hints ----
   let hintTimer = null;
