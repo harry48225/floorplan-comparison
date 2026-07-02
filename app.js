@@ -112,6 +112,8 @@
     card.className = "card";
     const nameEl = document.createElement("span");
     nameEl.className = "card-name";
+    const totalEl = document.createElement("span");
+    totalEl.className = "card-total hidden";
     const slider = document.createElement("input");
     slider.type = "range";
     slider.min = 0;
@@ -143,7 +145,7 @@
     del.type = "button";
     del.textContent = "✕";
     del.title = "Remove this plan from the comparison";
-    card.append(nameEl, slider, recalBtn, showBtn, saveBtn, lockBtn, del);
+    card.append(nameEl, totalEl, slider, recalBtn, showBtn, saveBtn, lockBtn, del);
     cardsEl.appendChild(card);
 
     const opacity = opts.opacity != null ? opts.opacity : plans.length === 0 ? 1 : 0.6;
@@ -154,6 +156,7 @@
       areaSvg: planSvg,
       card,
       nameEl,
+      totalEl,
       slider,
       saveBtn,
       recalBtn,
@@ -427,6 +430,14 @@
     p.showBtn.classList.toggle("hidden", !p.calibLine);
     p.showBtn.textContent = showCalibFor === p ? "Hide calibration" : "Show calibration";
     p.saveBtn.classList.toggle("hidden", !(canSave(p) && p.unitsPerPx != null));
+
+    // Running total of this plan's measured rooms (area boxes, not furniture).
+    const rooms = areas.filter((a) => a.plan === p && a.kind === "area");
+    const total = rooms.reduce((t, a) => t + a.w * a.h * p.unitsPerPx * p.unitsPerPx, 0);
+    p.totalEl.textContent = rooms.length
+      ? `${rooms.length} room${rooms.length === 1 ? "" : "s"} · ${total.toFixed(1)} m²`
+      : "";
+    p.totalEl.classList.toggle("hidden", !rooms.length);
 
     const r = stage.getBoundingClientRect();
     const bw = p.card.offsetWidth || 90;
