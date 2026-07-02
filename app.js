@@ -1683,7 +1683,8 @@
     if (
       !libraryPanel.classList.contains("hidden") &&
       !path.includes(libraryPanel) &&
-      e.target !== libraryBtn
+      e.target !== libraryBtn &&
+      e.target !== guideLibBtn // the guide's "Open library" opener, not an outside click
     )
       closeLibrary();
   });
