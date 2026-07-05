@@ -20,7 +20,7 @@ python3 -m http.server
 # then open http://localhost:8000
 ```
 
-Or host it anywhere static (GitHub Pages, nginx, …).
+Or host it anywhere static (GitHub Pages, nginx, etc.).
 
 ## What it does
 
