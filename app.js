@@ -2315,9 +2315,22 @@
   }
   const overStageUi = (t) =>
     t.closest("#guide, #undo-toast, .card, .zoom-toolbar, .tools-toolbar, #ctx-menu");
+  // Only offer the menu on an idle canvas — never mid-calibration, with a draw
+  // tool armed, placing furniture, or editing a box (a steady, precise press
+  // must not pop it up).
+  const ctxIdle = () =>
+    !calibrating() &&
+    !areaTool &&
+    !distTool &&
+    !furnPlacing &&
+    !areaMove &&
+    !areaResize &&
+    !areaRotate &&
+    !tapeEnd &&
+    !planRotating;
 
   stage.addEventListener("contextmenu", (e) => {
-    if (overStageUi(e.target)) return;
+    if (!ctxIdle() || overStageUi(e.target)) return;
     e.preventDefault();
     cancelLongPress();
     revertPressDrag();
@@ -2326,7 +2339,7 @@
   });
 
   stage.addEventListener("pointerdown", (e) => {
-    if (e.pointerType !== "touch" || !e.isPrimary || overStageUi(e.target)) return;
+    if (e.pointerType !== "touch" || !e.isPrimary || !ctxIdle() || overStageUi(e.target)) return;
     lpX = e.clientX;
     lpY = e.clientY;
     lpTimer = setTimeout(() => {
