@@ -40,3 +40,7 @@ Or host it anywhere static (GitHub Pages, nginx, etc.).
 
 `index.html`, `styles.css`, `app.js` (all the UI/logic), `storage.js` (IndexedDB wrapper).
 See `CLAUDE.md` for an architecture overview.
+
+## License
+
+[MIT](LICENSE)
