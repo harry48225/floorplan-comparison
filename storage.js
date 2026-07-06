@@ -85,11 +85,6 @@ window.PlanStore = (() => {
       rec.updated = Date.now();
       return this.save(rec);
     },
-    estimate() {
-      return navigator.storage && navigator.storage.estimate
-        ? navigator.storage.estimate()
-        : Promise.resolve({ usage: 0, quota: 0 });
-    },
     requestPersist() {
       return navigator.storage && navigator.storage.persist
         ? navigator.storage.persist()

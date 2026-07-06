@@ -1970,8 +1970,11 @@
         })
         .join("");
     }
-    Promise.all([PlanStore.estimate(), PlanStore.persisted()]).then(([{ usage, quota }, kept]) => {
-      const mb = quota ? `${(usage / 1e6).toFixed(1)} MB used` : "";
+    // Sum the stored bytes ourselves — storage.estimate() reports the whole
+    // origin (padded heavily in Firefox), not the library's actual size.
+    const bytes = recs.reduce((t, r) => t + (r.blob ? r.blob.size : 0) + (r.thumb ? r.thumb.size : 0), 0);
+    const mb = bytes ? `${(bytes / 1e6).toFixed(1)} MB used` : "";
+    PlanStore.persisted().then((kept) => {
       libUsage.textContent = kept ? (mb ? mb + " · kept on this device" : "Kept on this device") : mb;
     });
   }
