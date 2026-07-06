@@ -796,7 +796,7 @@
     return s;
   }
 
-  // A tape line: invisible fat hit line + visible line + end dots + length
+  // A tape line: invisible fat hit line + visible double-ended arrow + length
   // label; endpoint handles and a delete button while selected.
   function tapeSVG(a, k, sel) {
     const A = planToScreen(a.plan, a.ax, a.ay);
@@ -805,12 +805,18 @@
     const dx = B.x - A.x;
     const dy = B.y - A.y;
     const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    // Arrowhead at tip T pointing along (tx,ty): two wings swept back ±.
+    const head = (T, tx, ty) =>
+      `<path class="tape-arrow" d="M${T.x - tx * 9 - ty * 4.5} ${T.y - ty * 9 + tx * 4.5}` +
+      `L${T.x} ${T.y}L${T.x - tx * 9 + ty * 4.5} ${T.y - ty * 9 - tx * 4.5}"></path>`;
     const m = Math.hypot(a.bx - a.ax, a.by - a.ay) * a.plan.unitsPerPx;
     let s =
       `<line class="tape-hit"${di} x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"></line>` +
       `<line class="tape" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"></line>` +
-      `<circle class="tape-dot" cx="${A.x}" cy="${A.y}" r="3"></circle>` +
-      `<circle class="tape-dot" cx="${B.x}" cy="${B.y}" r="3"></circle>` +
+      head(B, ux, uy) +
+      head(A, -ux, -uy) +
       `<text class="tape-label" x="${(A.x + B.x) / 2 - (dy / len) * 14}"` +
       ` y="${(A.y + B.y) / 2 + (dx / len) * 14}">${m.toFixed(2)} m</text>`;
     if (sel) {

@@ -501,7 +501,14 @@ input[type="range"] {
   cursor: move;
 }
 .area-layer .tape-hit { pointer-events: none; } /* preview / while dragging */
-.tape-dot { fill: #b42318; pointer-events: none; }
+.tape-arrow {
+  stroke: #b42318;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  pointer-events: none;
+}
 .tape-end {
   fill: #fff;
   stroke: #b42318;
