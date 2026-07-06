@@ -72,7 +72,10 @@
 
     <div class="tools-toolbar">
       <div class="add-wrap">
-        <button id="add-plan" class="add-plan" type="button">＋ Add plan</button>
+        <button id="add-plan" class="add-plan" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add plan
+        </button>
         <div id="add-menu" class="add-menu hidden">
           <button id="add-file" type="button">From file…</button>
           <button id="library-btn" type="button">From library…</button>
@@ -81,9 +84,18 @@
         </div>
         <input type="file" id="add-plan-input" accept="image/*" multiple hidden />
       </div>
-      <button id="area-btn" type="button">Measure area</button>
-      <button id="dist-btn" type="button">Tape measure</button>
-      <button id="furniture-btn" type="button">Furniture</button>
+      <button id="area-btn" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="4 3"/></svg>
+        Measure area
+      </button>
+      <button id="dist-btn" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 20 4M13 4h7v7M11 20H4v-7"/></svg>
+        Tape measure
+      </button>
+      <button id="furniture-btn" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2M19 18v2"/></svg>
+        Furniture
+      </button>
     </div>
 
     <div class="zoom-toolbar">

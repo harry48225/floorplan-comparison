@@ -206,13 +206,27 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 138px;
+  width: 160px;
   gap: 6px;
 }
 .tools-toolbar button {
   box-shadow: var(--shadow);
   text-align: left;
   padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tools-toolbar button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none; /* keep e.target === the button for outside-click checks */
 }
 
 /* "＋ Add plan" — the toolbar's primary action, with its dropdown menu of
