@@ -3,7 +3,7 @@
 Overlay and compare property floor plans (from Rightmove, Zoopla, etc.) at a matched
 real-world scale, and measure room areas — entirely in your browser.
 
-**[Try it live →](https://harry48225.github.io/floorplan-comparison/)**
+**[Try it live →](https://floorplan.octopode.dev/)**
 
 > **Vibe-coded.** This was built quickly and iteratively with an AI assistant. Expect rough
 > edges, and don't rely on the measurements for anything important.
