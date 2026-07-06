@@ -10,12 +10,13 @@ No build step. Open `index.html` directly (`open index.html`) for everyday use �
 load via the file picker / paste / drag-drop, so there are no cross-origin issues for the
 app itself. **The saved-plans Library (IndexedDB) only works reliably when the page is
 served over `http(s)`** (localhost or a static host like GitHub Pages); on `file://` the
-Library button is hidden. Intended to be hosted publicly.
+library entry points are hidden. Intended to be hosted publicly.
 
 ## Files
 
-- `index.html` — markup: toolbar, the `#stage` canvas, two plan `<section.panel>`s, the
-  SVG overlay layers, the guide banner, floating toolbars, and the Library panel.
+- `index.html` — markup: the header (brand · tip · About), the `#stage` canvas, the SVG
+  overlay layers, the guide banner, the floating toolbars (including the add-plan menu),
+  the Rightmove-grab popover, and the Library/Furniture panels.
 - `styles.css` — light theme; all layout and the SVG overlay styling.
 - `app.js` — all app logic, wrapped in one IIFE. No modules, no framework.
 - `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper for saved plans (loaded
@@ -63,8 +64,13 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 
 ## Interaction summary
 
-- **Load (adds a new plan each time):** paste (⌘V), drag-drop, or **Library → Add**. The
-  Rightmove bookmarklet (under **Rightmove ▾**, `grabFloorplan`) runs on the property page:
+- **Load (adds a new plan each time):** paste (⌘V), drag-drop, or the **＋ Add plan** menu
+  at the top of the right-hand tools toolbar — **From file… / From library… / From
+  Rightmove/Zoopla…**, the one home for every source (the header holds no actions). The
+  empty-canvas guide leads with paste; its **Open library** button only shows when the
+  library has plans (`libHasPlans`, seeded by `PlanStore.count()` at startup), and its muted
+  link — like the menu's Rightmove item — opens the grab popover (`#help`).
+  The Rightmove bookmarklet (`grabFloorplan`, in that popover) runs on the property page:
   it finds the floorplan(s), shows the full-res image in an injected overlay with
   "Right-click → Copy Image" instructions, and its button opens the app at `#paste` (a named
   window, reused on repeat grabs), which shows a "press ⌘V" guide state (`pasteReady`).
@@ -75,7 +81,9 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Library:** `storage.js` / IndexedDB. New file-loaded plans offer a **Save to library**
   checkbox in the confirm step (default on); `#lib-save` is a manual fallback for the selected
   plan. Stores image Blob + `unitsPerPx` + thumbnail. Add / rename / delete from the panel;
-  persistence is requested automatically on first open. Remote-URL images can't be saved (no
+  persistence is requested automatically on first open. The footer's size readout sums the
+  stored blob bytes (`navigator.storage.estimate()` reports the whole origin and is heavily
+  padded in Firefox). Remote-URL images can't be saved (no
   Blob / tainted canvas). **Backup:** the Library footer has **Export** (whole library →
   a self-contained JSON file; image bytes as base64 data URLs) and **Import** (restore from
   such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
@@ -114,14 +122,19 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   Screen px per metre = `view.scale · p.scale / unitsPerPx` (equal across matched plans); each
   picks a nice 1/2/5 ×10ⁿ distance ≤100 px, labelled in m/cm and ft/in (via `niceRound`).
   Hidden until at least one plan is calibrated.
-- **Measure area** (floating toolbar, top-left): click two corners to draw a rectangle; it
+- **Tools toolbar** (floating, top-right): ＋ Add plan (with its dropdown menu), then the
+  three tools — Measure area, Tape measure, Furniture — each with an inline-SVG icon. The
+  tool buttons are **disabled until some plan is loaded and calibrated**; `render()` also
+  disarms an armed tool if that last calibrated plan is removed.
+- **Measure area**: click two corners to draw a rectangle; it
   auto-exits and selects the box. Boxes show width/height + m². Select for handles (8 resize +
   rotate + delete ×). Stored `{ kind:"area", plan, cx, cy, w, h, angle }` in the owning plan's
   natural-pixel coords. Dragging a box onto another plan re-anchors it (keeps on-screen
   size/angle).
 - **Tape measure** (next to Measure area): click two points for a point-to-point distance —
   snaps to the plan's H/V axes within 15° (`planSnap`, in plan coords so it follows plan
-  rotation), auto-exits, and shows its length in metres. Stored alongside the boxes as
+  rotation), auto-exits, and draws as a double-ended arrow labelled in metres. Stored
+  alongside the boxes as
   `{ kind:"tape", plan, ax, ay, bx, by }`; select to drag its endpoints or delete, drag the
   line to move (re-anchors by its midpoint). The area and tape draw tools are mutually
   exclusive.
@@ -154,6 +167,8 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   swallow every click.
 - `pointer-events` is inherited: SVG roots are `none`, so interactive shapes must set
   `pointer-events: all` explicitly (polygons, handles, `.del`, `.rot`).
+- The toolbar buttons' icon SVGs are `pointer-events: none`, so the outside-click handlers'
+  `e.target` checks (add menu, panels, popover) always see the `<button>` itself.
 - z-order: `#layers` (interleaved per-plan) < `#area-layer` (z2: drawing preview + the box
   being dragged, lifted above its plan) < `#plan-ui` (z3, plan border/rotate) ≈ `#cards` (z3)
   < calib (z4) < guide / toolbars (z5) < hint (z6) < help/library popovers (z10–11).
