@@ -431,6 +431,20 @@
       }
     }
 
+    // The tools need a loaded, calibrated plan; without one, disable their
+    // buttons (and disarm an armed tool — e.g. its plan was just removed).
+    const toolsReady = plans.some((p) => p.loaded && p.unitsPerPx != null);
+    if (!toolsReady && (areaTool || distTool || furnPlacing)) {
+      areaTool = distTool = false;
+      areaDraw = areaCursor = distDraw = distCursor = null;
+      furnPlacing = null;
+      areaBtn.classList.remove("active");
+      distBtn.classList.remove("active");
+      areaSvg.classList.remove("active");
+      hideHint();
+    }
+    areaBtn.disabled = distBtn.disabled = furnitureBtn.disabled = !toolsReady;
+
     updateGuide();
     updateScaleBar();
   }
