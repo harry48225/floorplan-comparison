@@ -508,6 +508,7 @@
   // Tuck a plan's card just inside its top-left (0,0) corner.
   function positionCard(p) {
     p.card.classList.toggle("show", p.loaded);
+    p.card.classList.toggle("sel", selectedPlan === p); // small screens: full controls only when selected
     if (!p.loaded) return;
     p.nameEl.textContent = p.name;
     // Recalibrate once calibrated; show-calibration when a line is stored;

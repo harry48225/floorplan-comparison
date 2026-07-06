@@ -971,4 +971,13 @@ kbd {
     height: 18px;
   }
   .guide { max-width: calc(100vw - 120px); } /* clear the icon toolbar */
+  /* Slim plan cards: name + opacity + remove. Selecting the plan (a tap)
+     reveals the full controls, wrapping instead of overflowing. */
+  .card { flex-wrap: wrap; max-width: min(240px, 60vw); }
+  .card:not(.sel) .card-total,
+  .card:not(.sel) .card-recal,
+  .card:not(.sel) .card-show,
+  .card:not(.sel) .card-save,
+  .card:not(.sel) .card-tint,
+  .card:not(.sel) .card-lock:not(.locked) { display: none; } /* a locked plan can't be selected — keep its padlock reachable */
 }
