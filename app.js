@@ -49,6 +49,7 @@
   let planRotating = false; // dragging a plan's rotate knob
   let peeking = false; // holding Space — top plan hidden to peek underneath
   let pasteReady = false; // opened via the bookmarklet's #paste — prompting for ⌘V
+  let libHasPlans = false; // the library holds ≥1 saved plan — offer it in the guide
 
   // Calibration: idle -> measuring a plan -> confirm pending -> applied.
   let calibPlan = null; // plan object being measured, or null
@@ -544,7 +545,7 @@
     } else if (!plans.some((p) => p.loaded)) {
       adding = true;
       title = "Add your first floor plan";
-      body = "Paste (⌘V), drop an image here, choose a file, or open your Library.";
+      body = ""; // the static add row carries the paste/drop/file copy
     } else {
       show = false; // plans loaded; nothing to prompt
     }
@@ -565,6 +566,7 @@
         `Copy image, then come back and paste it here to save it to your library.`;
     }
     guideAddRow.classList.toggle("hidden", !adding);
+    guideLibBtn.classList.toggle("hidden", !libHasPlans); // only offer a non-empty library
     guideTitle.textContent = title;
     guideBody.textContent = body;
   }
@@ -1887,6 +1889,7 @@
       created: p.created,
       updated: Date.now(),
     });
+    libHasPlans = true;
     if (!libraryPanel.classList.contains("hidden")) refreshLibrary();
   }
 
@@ -1927,6 +1930,8 @@
   async function refreshLibrary() {
     libThumbUrls.splice(0).forEach((u) => URL.revokeObjectURL(u));
     const recs = await PlanStore.list();
+    libHasPlans = recs.length > 0;
+    updateGuide();
     if (!recs.length) {
       libGrid.innerHTML =
         '<p class="lib-empty">No saved plans yet. When you add a plan, tick “Save to library” after calibrating it.</p>';
@@ -2001,7 +2006,11 @@
   }
   libraryBtn.addEventListener("click", openLibrary); // a menu item, so always open
   guideLibBtn.addEventListener("click", openLibrary);
-  if (!PlanStore.available()) guideLibBtn.classList.add("hidden");
+  if (PlanStore.available())
+    PlanStore.count().then((n) => {
+      libHasPlans = n > 0;
+      updateGuide();
+    }).catch(() => {});
 
   // ---- About modal ----
   const aboutModal = document.getElementById("about");

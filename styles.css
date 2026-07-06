@@ -350,6 +350,17 @@ input[type="range"] {
   margin-top: 12px;
 }
 #guide-add-row button { pointer-events: auto; }
+.guide-paste {
+  flex-basis: 100%;
+  margin: 0 0 2px;
+  font-size: 15px;
+}
+.guide-or {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 .guide-rm {
   flex-basis: 100%;
   margin: 2px 0 0;

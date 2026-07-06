@@ -72,6 +72,9 @@ window.PlanStore = (() => {
     list() {
       return op("readonly", (s) => s.getAll()).then((a) => a.sort((x, y) => y.created - x.created));
     },
+    count() {
+      return op("readonly", (s) => s.count());
+    },
     remove(id) {
       return op("readwrite", (s) => s.delete(id));
     },
