@@ -763,7 +763,9 @@ kbd {
 
 .lib-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): let a card shrink below its content so long names ellipsise
+     instead of widening their column past the other one. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
   overflow-y: auto;
