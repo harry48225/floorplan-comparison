@@ -626,8 +626,7 @@
       e.target.closest("#undo-toast") ||
       e.target.closest(".card") ||
       e.target.closest(".zoom-toolbar") ||
-      e.target.closest(".tools-toolbar") ||
-      e.target.closest("#ctx-menu")
+      e.target.closest(".tools-toolbar")
     )
       return;
     if (furnPlacing) {
@@ -2180,8 +2179,6 @@
       aboutModal.classList.add("hidden");
     } else if (!addMenu.classList.contains("hidden")) {
       addMenu.classList.add("hidden");
-    } else if (!ctxMenu.classList.contains("hidden")) {
-      closeCtxMenu();
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
@@ -2272,25 +2269,16 @@
     for (const f of e.dataTransfer.files) loadFile(f);
   });
 
-  // ---- Right-click / long-press → paste menu ----
-  // The native context menu can't paste into a page, so a custom menu offers
-  // it via the async clipboard API. Android fires contextmenu on long-press;
-  // iOS never does, so a pointer timer covers touch there.
-  const ctxMenu = document.getElementById("ctx-menu");
+  // ---- Right-click / long-press → paste ----
+  // The native context menu can't paste into a page, so the gesture pastes
+  // directly via the async clipboard API — Safari shows its own "Paste"
+  // confirmation at the pointer, Chrome asks for permission once. Android
+  // fires contextmenu on long-press; iOS never does, so a pointer timer
+  // covers touch there.
   let lpTimer = null; // pending long-press
   let lpX = 0;
   let lpY = 0;
-  let ctxSquelchClick = false; // eat the click that ends a long-press
 
-  function openCtxMenu(sx, sy) {
-    ctxMenu.classList.remove("hidden");
-    const r = stage.getBoundingClientRect();
-    ctxMenu.style.left = clamp(sx, 8, r.width - ctxMenu.offsetWidth - 8) + "px";
-    ctxMenu.style.top = clamp(sy, 8, r.height - ctxMenu.offsetHeight - 8) + "px";
-  }
-  function closeCtxMenu() {
-    ctxMenu.classList.add("hidden");
-  }
   function cancelLongPress() {
     clearTimeout(lpTimer);
     lpTimer = null;
@@ -2314,7 +2302,7 @@
     render();
   }
   const overStageUi = (t) =>
-    t.closest("#guide, #undo-toast, .card, .zoom-toolbar, .tools-toolbar, #ctx-menu");
+    t.closest("#guide, #undo-toast, .card, .zoom-toolbar, .tools-toolbar");
   // Only offer the menu on an idle canvas — never mid-calibration, with a draw
   // tool armed, placing furniture, or editing a box (a steady, precise press
   // must not pop it up).
@@ -2334,8 +2322,7 @@
     e.preventDefault();
     cancelLongPress();
     revertPressDrag();
-    const r = stage.getBoundingClientRect();
-    openCtxMenu(e.clientX - r.left, e.clientY - r.top);
+    pasteFromClipboard();
   });
 
   stage.addEventListener("pointerdown", (e) => {
@@ -2345,30 +2332,16 @@
     lpTimer = setTimeout(() => {
       lpTimer = null;
       revertPressDrag();
-      ctxSquelchClick = true; // lifting the finger still clicks; keep the menu open
-      const r = stage.getBoundingClientRect();
-      openCtxMenu(lpX - r.left, lpY - r.top);
+      pasteFromClipboard();
     }, 550);
   });
   stage.addEventListener("pointermove", (e) => {
     if (lpTimer && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 8) cancelLongPress();
   });
   stage.addEventListener("pointerup", cancelLongPress);
-  stage.addEventListener("pointercancel", () => {
-    cancelLongPress();
-    ctxSquelchClick = false;
-  });
+  stage.addEventListener("pointercancel", cancelLongPress);
 
-  document.addEventListener("click", (e) => {
-    if (ctxSquelchClick) {
-      ctxSquelchClick = false;
-      return;
-    }
-    if (!ctxMenu.contains(e.target)) closeCtxMenu();
-  });
-
-  document.getElementById("ctx-paste").addEventListener("click", async () => {
-    closeCtxMenu();
+  async function pasteFromClipboard() {
     if (!navigator.clipboard?.read) {
       showHint("This browser can't read the clipboard — press ⌘V / Ctrl V instead.", 4500);
       return;
@@ -2395,7 +2368,7 @@
     } catch (_) {
       showHint("Couldn't read the clipboard — press ⌘V / Ctrl V instead.", 4500);
     }
-  });
+  }
 
   // Opened via the bookmarklet's "Open Floor Plan Overlay" button: #paste
   // prompts for the floorplan on the clipboard. The hash is cleared straight

@@ -251,22 +251,14 @@ input[type="range"] {
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
 }
-.add-menu button {
+.tools-toolbar .add-menu button {
   border: none;
   box-shadow: none;
   background: none;
   padding: 8px 10px;
   border-radius: 6px;
 }
-.add-menu button:hover { background: var(--accent-soft); }
-
-/* Right-click / long-press menu on the canvas; app.js positions it at the pointer. */
-.ctx-menu {
-  top: auto;
-  right: auto;
-  width: 170px;
-  z-index: 7;
-}
+.tools-toolbar .add-menu button:hover { background: var(--accent-soft); }
 .add-hint {
   margin: 4px 10px 6px;
   color: var(--muted);
