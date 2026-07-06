@@ -833,6 +833,7 @@ kbd {
 .modal-card h2 { margin: 0 0 12px; font-size: 18px; }
 .modal-card p { margin: 0 0 10px; line-height: 1.5; }
 .modal-card p:last-child { margin-bottom: 0; }
+.modal-card a { color: var(--accent); }
 .modal-close {
   position: absolute;
   top: 10px;
