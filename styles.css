@@ -89,6 +89,8 @@ input[type="range"] {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none; /* long-press etc. must reach us, not scroll the page */
+  -webkit-touch-callout: none; /* no iOS save-image sheet on long-press */
   background:
     linear-gradient(45deg, #eceef1 25%, transparent 25%) -10px 0,
     linear-gradient(-45deg, #eceef1 25%, transparent 25%) -10px 0,
@@ -228,6 +230,7 @@ input[type="range"] {
   stroke-linejoin: round;
   pointer-events: none; /* keep e.target === the button for outside-click checks */
 }
+.tools-toolbar button span { pointer-events: none; } /* ditto */
 
 /* "＋ Add plan" — the toolbar's primary action, with its dropdown menu of
    every way to get a plan in (file / library / Rightmove grab). */
@@ -248,14 +251,22 @@ input[type="range"] {
   border-radius: 10px;
   box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
 }
-.tools-toolbar .add-menu button {
+.add-menu button {
   border: none;
   box-shadow: none;
   background: none;
   padding: 8px 10px;
   border-radius: 6px;
 }
-.tools-toolbar .add-menu button:hover { background: var(--accent-soft); }
+.add-menu button:hover { background: var(--accent-soft); }
+
+/* Right-click / long-press menu on the canvas; app.js positions it at the pointer. */
+.ctx-menu {
+  top: auto;
+  right: auto;
+  width: 170px;
+  z-index: 7;
+}
 .add-hint {
   margin: 4px 10px 6px;
   color: var(--muted);
@@ -279,6 +290,19 @@ input[type="range"] {
   line-height: 1;
   border-radius: 8px;
   box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.zoom-toolbar button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
 }
 .card-opacity {
   width: 64px;
@@ -920,3 +944,39 @@ kbd {
 }
 
 .hidden { display: none !important; }
+
+/* ---- Touch devices ---- */
+.guide-paste-touch,
+.add-hint-touch { display: none; }
+@media (pointer: coarse) {
+  .guide-paste-kbd,
+  .add-hint-kbd { display: none; }
+  .guide-paste-touch,
+  .add-hint-touch { display: block; }
+  .tape-hit { stroke-width: 24; } /* finger-sized grab line */
+}
+
+/* ---- Small screens ---- */
+@media (max-width: 720px) {
+  .tip { display: none; } /* keyboard advice; the About modal still covers it */
+  #about-btn { margin-left: auto; } /* the hidden tip was the spacer */
+  /* Icon-only tools toolbar; the labels stay for screen readers. */
+  .tools-toolbar { width: auto; }
+  .tools-toolbar button {
+    justify-content: center;
+    padding: 10px;
+  }
+  .tools-toolbar button span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .tools-toolbar button svg {
+    width: 18px;
+    height: 18px;
+  }
+  .guide { max-width: calc(100vw - 120px); } /* clear the icon toolbar */
+}

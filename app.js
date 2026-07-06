@@ -89,6 +89,7 @@
   const guideLibBtn = document.getElementById("guide-library");
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const HK = window.matchMedia("(pointer: coarse)").matches ? 1.6 : 1; // finger-sized handles on touch
   const calibrating = () => calibPlan !== null;
   const formatLen = (n) => String(Math.round(n * 1000) / 1000);
   const SVGNS = "http://www.w3.org/2000/svg";
@@ -444,6 +445,7 @@
       hideHint();
     }
     areaBtn.disabled = distBtn.disabled = furnitureBtn.disabled = !toolsReady;
+    peekBtn.disabled = plans.filter((p) => p.loaded).length < 2; // nothing underneath to peek at
 
     updateGuide();
     updateScaleBar();
@@ -615,6 +617,8 @@
 
   stage.addEventListener("pointerdown", (e) => {
     if (
+      e.button !== 0 || // right-click opens the paste menu, not a drag
+      (e.pointerType === "touch" && touches.size > 0) || // a second finger pinches, it doesn't drag
       (calibrating() && !calibPending) ||
       areaTool ||
       distTool ||
@@ -622,7 +626,8 @@
       e.target.closest("#undo-toast") ||
       e.target.closest(".card") ||
       e.target.closest(".zoom-toolbar") ||
-      e.target.closest(".tools-toolbar")
+      e.target.closest(".tools-toolbar") ||
+      e.target.closest("#ctx-menu")
     )
       return;
     if (furnPlacing) {
@@ -686,6 +691,46 @@
     const r = stage.getBoundingClientRect();
     placeFurnitureAt(e.clientX - r.left, e.clientY - r.top);
   });
+
+  // ---- Touch: pinch to zoom, two-finger pan ----
+  const touches = new Map(); // active touch pointers on the stage
+  let pinch = null; // previous two-finger frame: {dist, mx, my}
+
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch") return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (touches.size === 2) {
+      drag = null; // the first finger's drag becomes a pinch
+      cancelLongPress();
+      const [a, b] = [...touches.values()];
+      pinch = { dist: Math.hypot(b.x - a.x, b.y - a.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
+    } else {
+      pinch = null;
+    }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    const t = touches.get(e.pointerId);
+    if (!t) return;
+    t.x = e.clientX;
+    t.y = e.clientY;
+    if (!pinch || touches.size !== 2) return;
+    if (calibrating() && !calibPending) return; // no zooming mid-measurement (matches wheel)
+    const [a, b] = [...touches.values()];
+    const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    view.x += mx - pinch.mx;
+    view.y += my - pinch.my;
+    const r = stage.getBoundingClientRect();
+    zoomView(dist / pinch.dist, mx - r.left, my - r.top); // also renders
+    pinch = { dist, mx, my };
+  });
+  const endTouch = (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinch = null;
+  };
+  stage.addEventListener("pointerup", endTouch);
+  stage.addEventListener("pointercancel", endTouch);
 
   stage.addEventListener(
     "wheel",
@@ -767,7 +812,7 @@
     );
   }
   function boxHandlesSVG(a, k) {
-    const hs = 4.5;
+    const hs = 4.5 * HK;
     let s = "";
     // Furniture is locked to its real size — rotate/delete only, no resize.
     if (a.kind !== "furniture") {
@@ -785,12 +830,12 @@
       const len = Math.hypot(dx, dy) || 1;
       return { x: c.x + (dx / len) * dist, y: c.y + (dy / len) * dist, ax: c.x, ay: c.y };
     };
-    const rot = outward(boxPoint(a, 0, -1), 24);
+    const rot = outward(boxPoint(a, 0, -1), 24 * HK);
     s += `<line class="rot-stem" x1="${rot.ax}" y1="${rot.ay}" x2="${rot.x}" y2="${rot.y}"></line>`;
-    s += `<circle class="rot" data-i="${k}" cx="${rot.x}" cy="${rot.y}" r="7"></circle>`;
-    const d = outward(boxPoint(a, 1, -1), 16);
+    s += `<circle class="rot" data-i="${k}" cx="${rot.x}" cy="${rot.y}" r="${7 * HK}"></circle>`;
+    const d = outward(boxPoint(a, 1, -1), 16 * HK);
     const o = 3.5;
-    s += `<circle class="del" data-i="${k}" cx="${d.x}" cy="${d.y}" r="9"></circle>`;
+    s += `<circle class="del" data-i="${k}" cx="${d.x}" cy="${d.y}" r="${9 * HK}"></circle>`;
     s += `<line class="del-x" x1="${d.x - o}" y1="${d.y - o}" x2="${d.x + o}" y2="${d.y + o}"></line>`;
     s += `<line class="del-x" x1="${d.x - o}" y1="${d.y + o}" x2="${d.x + o}" y2="${d.y - o}"></line>`;
     return s;
@@ -821,11 +866,11 @@
       ` y="${(A.y + B.y) / 2 + (dx / len) * 14}">${m.toFixed(2)} m</text>`;
     if (sel) {
       s +=
-        `<circle class="tape-end"${di} data-end="a" cx="${A.x}" cy="${A.y}" r="5.5"></circle>` +
-        `<circle class="tape-end"${di} data-end="b" cx="${B.x}" cy="${B.y}" r="5.5"></circle>`;
-      const d = { x: (A.x + B.x) / 2 + (dy / len) * 18, y: (A.y + B.y) / 2 - (dx / len) * 18 };
+        `<circle class="tape-end"${di} data-end="a" cx="${A.x}" cy="${A.y}" r="${5.5 * HK}"></circle>` +
+        `<circle class="tape-end"${di} data-end="b" cx="${B.x}" cy="${B.y}" r="${5.5 * HK}"></circle>`;
+      const d = { x: (A.x + B.x) / 2 + (dy / len) * 18 * HK, y: (A.y + B.y) / 2 - (dx / len) * 18 * HK };
       const o = 3.5;
-      s += `<circle class="del"${di} cx="${d.x}" cy="${d.y}" r="9"></circle>`;
+      s += `<circle class="del"${di} cx="${d.x}" cy="${d.y}" r="${9 * HK}"></circle>`;
       s += `<line class="del-x" x1="${d.x - o}" y1="${d.y - o}" x2="${d.x + o}" y2="${d.y + o}"></line>`;
       s += `<line class="del-x" x1="${d.x - o}" y1="${d.y + o}" x2="${d.x + o}" y2="${d.y - o}"></line>`;
     }
@@ -1302,11 +1347,11 @@
     const dx = topMid.x - ctr.x;
     const dy = topMid.y - ctr.y;
     const len = Math.hypot(dx, dy) || 1;
-    const knob = { x: topMid.x + (dx / len) * 28, y: topMid.y + (dy / len) * 28 };
+    const knob = { x: topMid.x + (dx / len) * 28 * HK, y: topMid.y + (dy / len) * 28 * HK };
     planUiSvg.innerHTML =
       `<polygon class="plan-border" points="${c.map((q) => `${q.x},${q.y}`).join(" ")}"></polygon>` +
       `<line class="rot-stem" x1="${topMid.x}" y1="${topMid.y}" x2="${knob.x}" y2="${knob.y}"></line>` +
-      `<circle class="rot plan-rot" cx="${knob.x}" cy="${knob.y}" r="8"></circle>`;
+      `<circle class="rot plan-rot" cx="${knob.x}" cy="${knob.y}" r="${8 * HK}"></circle>`;
   }
 
   planUiSvg.addEventListener("pointerdown", (e) => {
@@ -1577,6 +1622,22 @@
   }
 
   // ---- Toolbar wiring ----
+  // Hold-to-peek button — the touch/mouse counterpart of holding Space.
+  const peekBtn = document.getElementById("peek-btn");
+  peekBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); // no focus grab; keep the press as a pure hold
+    peeking = true;
+    render();
+  });
+  const releasePeek = () => {
+    if (!peeking) return;
+    peeking = false;
+    render();
+  };
+  peekBtn.addEventListener("pointerup", releasePeek);
+  peekBtn.addEventListener("pointercancel", releasePeek);
+  peekBtn.addEventListener("pointerleave", releasePeek);
+
   const zoomCentre = (factor) => {
     const r = stage.getBoundingClientRect();
     zoomView(factor, r.width / 2, r.height / 2);
@@ -2119,6 +2180,8 @@
       aboutModal.classList.add("hidden");
     } else if (!addMenu.classList.contains("hidden")) {
       addMenu.classList.add("hidden");
+    } else if (!ctxMenu.classList.contains("hidden")) {
+      closeCtxMenu();
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
@@ -2207,6 +2270,118 @@
     e.preventDefault();
     stage.classList.remove("dragover");
     for (const f of e.dataTransfer.files) loadFile(f);
+  });
+
+  // ---- Right-click / long-press → paste menu ----
+  // The native context menu can't paste into a page, so a custom menu offers
+  // it via the async clipboard API. Android fires contextmenu on long-press;
+  // iOS never does, so a pointer timer covers touch there.
+  const ctxMenu = document.getElementById("ctx-menu");
+  let lpTimer = null; // pending long-press
+  let lpX = 0;
+  let lpY = 0;
+  let ctxSquelchClick = false; // eat the click that ends a long-press
+
+  function openCtxMenu(sx, sy) {
+    ctxMenu.classList.remove("hidden");
+    const r = stage.getBoundingClientRect();
+    ctxMenu.style.left = clamp(sx, 8, r.width - ctxMenu.offsetWidth - 8) + "px";
+    ctxMenu.style.top = clamp(sy, 8, r.height - ctxMenu.offsetHeight - 8) + "px";
+  }
+  function closeCtxMenu() {
+    ctxMenu.classList.add("hidden");
+  }
+  function cancelLongPress() {
+    clearTimeout(lpTimer);
+    lpTimer = null;
+  }
+  // A long-press (or Android's contextmenu) lands mid-gesture: pointerdown has
+  // already started a drag, so put back the few px it moved before the menu.
+  function revertPressDrag() {
+    if (!drag) return;
+    const dx = lastX - lpX;
+    const dy = lastY - lpY;
+    if (Math.hypot(dx, dy) <= 12) {
+      if (drag.kind === "view") {
+        view.x -= dx;
+        view.y -= dy;
+      } else {
+        drag.plan.tx -= dx / view.scale;
+        drag.plan.ty -= dy / view.scale;
+      }
+    }
+    drag = null;
+    render();
+  }
+  const overStageUi = (t) =>
+    t.closest("#guide, #undo-toast, .card, .zoom-toolbar, .tools-toolbar, #ctx-menu");
+
+  stage.addEventListener("contextmenu", (e) => {
+    if (overStageUi(e.target)) return;
+    e.preventDefault();
+    cancelLongPress();
+    revertPressDrag();
+    const r = stage.getBoundingClientRect();
+    openCtxMenu(e.clientX - r.left, e.clientY - r.top);
+  });
+
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.pointerType !== "touch" || !e.isPrimary || overStageUi(e.target)) return;
+    lpX = e.clientX;
+    lpY = e.clientY;
+    lpTimer = setTimeout(() => {
+      lpTimer = null;
+      revertPressDrag();
+      ctxSquelchClick = true; // lifting the finger still clicks; keep the menu open
+      const r = stage.getBoundingClientRect();
+      openCtxMenu(lpX - r.left, lpY - r.top);
+    }, 550);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (lpTimer && Math.hypot(e.clientX - lpX, e.clientY - lpY) > 8) cancelLongPress();
+  });
+  stage.addEventListener("pointerup", cancelLongPress);
+  stage.addEventListener("pointercancel", () => {
+    cancelLongPress();
+    ctxSquelchClick = false;
+  });
+
+  document.addEventListener("click", (e) => {
+    if (ctxSquelchClick) {
+      ctxSquelchClick = false;
+      return;
+    }
+    if (!ctxMenu.contains(e.target)) closeCtxMenu();
+  });
+
+  document.getElementById("ctx-paste").addEventListener("click", async () => {
+    closeCtxMenu();
+    if (!navigator.clipboard?.read) {
+      showHint("This browser can't read the clipboard — press ⌘V / Ctrl V instead.", 4500);
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) {
+        const type = it.types.find((t) => t.startsWith("image/"));
+        if (type) {
+          loadFile(await it.getType(type));
+          return;
+        }
+      }
+      // No image — a copied image *URL* still works (same as ⌘V, unsaveable).
+      for (const it of items) {
+        if (!it.types.includes("text/plain")) continue;
+        const text = (await (await it.getType("text/plain")).text()).trim();
+        if (/^https?:\/\//i.test(text)) {
+          loadFromUrl(text);
+          return;
+        }
+      }
+      showHint("Nothing to paste — copy a floorplan image first.", 4500);
+    } catch (_) {
+      showHint("Couldn't read the clipboard — press ⌘V / Ctrl V instead.", 4500);
+    }
   });
 
   // Opened via the bookmarklet's "Open Floor Plan Overlay" button: #paste
