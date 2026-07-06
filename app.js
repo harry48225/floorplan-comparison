@@ -48,7 +48,6 @@
   let selectedPlan = null; // plan object showing its rotate handle, or null
   let planRotating = false; // dragging a plan's rotate knob
   let peeking = false; // holding Space — top plan hidden to peek underneath
-  let addingPlan = false; // showing the "add a plan" prompt on demand
   let pasteReady = false; // opened via the bookmarklet's #paste — prompting for ⌘V
 
   // Calibration: idle -> measuring a plan -> confirm pending -> applied.
@@ -95,8 +94,7 @@
 
   // ---- Plan lifecycle ----
   function addPlan(opts = {}) {
-    addingPlan = false; // a plan is being added; dismiss the prompts
-    pasteReady = false;
+    pasteReady = false; // a plan is being added; dismiss the paste prompt
     const id = nextId++;
     const layer = document.createElement("div");
     layer.className = "layer";
@@ -543,9 +541,9 @@
     } else if (pasteReady) {
       title = "Paste your floorplan";
       body = "Press ⌘V / Ctrl+V to add the floorplan you copied. Esc to cancel.";
-    } else if (addingPlan || !plans.some((p) => p.loaded)) {
+    } else if (!plans.some((p) => p.loaded)) {
       adding = true;
-      title = plans.some((p) => p.loaded) ? "Add another floor plan" : "Add your first floor plan";
+      title = "Add your first floor plan";
       body = "Paste (⌘V), drop an image here, choose a file, or open your Library.";
     } else {
       show = false; // plans loaded; nothing to prompt
@@ -608,8 +606,7 @@
       e.target.closest("#undo-toast") ||
       e.target.closest(".card") ||
       e.target.closest(".zoom-toolbar") ||
-      e.target.closest(".tools-toolbar") ||
-      e.target.closest(".library-fab")
+      e.target.closest(".tools-toolbar")
     )
       return;
     if (furnPlacing) {
@@ -624,7 +621,6 @@
     const p = pickPlan(e);
     selected = null;
     selectedPlan = p; // clicking a plan selects it; empty canvas deselects
-    addingPlan = false; // clicking the canvas dismisses the add prompt
     // Note: clicking a plan does NOT restack it. Re-parenting its layer to the
     // top invalidates the cached wall-filter layer, which caused a stutter at
     // the start of every drag. Plans keep their load order; drag stays smooth.
@@ -1689,12 +1685,18 @@
       closeLibrary();
   });
 
-  // Add plan: show the "add a plan" prompt (paste / drop / choose file / Library).
+  // Add plan: one menu for every way in (file / library / Rightmove grab).
   const addPlanInput = document.getElementById("add-plan-input");
-  document.getElementById("add-plan").addEventListener("click", () => {
-    addingPlan = true;
-    render();
+  const addPlanBtn = document.getElementById("add-plan");
+  const addMenu = document.getElementById("add-menu");
+  addPlanBtn.addEventListener("click", () => addMenu.classList.toggle("hidden"));
+  addMenu.addEventListener("click", (e) => {
+    if (e.target.closest("button")) addMenu.classList.add("hidden"); // picking an item closes it
   });
+  document.addEventListener("click", (e) => {
+    if (!addMenu.contains(e.target) && e.target !== addPlanBtn) addMenu.classList.add("hidden");
+  });
+  document.getElementById("add-file").addEventListener("click", () => addPlanInput.click());
   guideFileBtn.addEventListener("click", () => addPlanInput.click());
   addPlanInput.addEventListener("change", (e) => {
     for (const f of e.target.files) loadFile(f);
@@ -1818,10 +1820,17 @@
   const helpBtn = document.getElementById("help-btn");
   const helpPop = document.getElementById("help");
   const bmLink = document.getElementById("bm");
+  const guideRmLink = document.getElementById("guide-rm-link");
   bmLink.href = BOOKMARKLET;
-  helpBtn.addEventListener("click", () => helpPop.classList.toggle("hidden"));
+  helpBtn.addEventListener("click", () => helpPop.classList.remove("hidden"));
+  document.getElementById("help-close").addEventListener("click", () => helpPop.classList.add("hidden"));
+  guideRmLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    helpPop.classList.remove("hidden");
+  });
   document.addEventListener("click", (e) => {
-    if (!helpPop.contains(e.target) && e.target !== helpBtn) helpPop.classList.add("hidden");
+    if (!helpPop.contains(e.target) && e.target !== helpBtn && e.target !== guideRmLink)
+      helpPop.classList.add("hidden");
   });
   bmLink.addEventListener("click", (e) => {
     e.preventDefault();
@@ -1990,10 +1999,7 @@
     libraryPanel.classList.add("hidden");
     libraryBtn.classList.remove("active");
   }
-  libraryBtn.addEventListener("click", () => {
-    if (libraryPanel.classList.contains("hidden")) openLibrary();
-    else closeLibrary();
-  });
+  libraryBtn.addEventListener("click", openLibrary); // a menu item, so always open
   guideLibBtn.addEventListener("click", openLibrary);
   if (!PlanStore.available()) guideLibBtn.classList.add("hidden");
 
@@ -2079,12 +2085,13 @@
       render();
     } else if (!aboutModal.classList.contains("hidden")) {
       aboutModal.classList.add("hidden");
+    } else if (!addMenu.classList.contains("hidden")) {
+      addMenu.classList.add("hidden");
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
     } else if (!furniturePanel.classList.contains("hidden")) {
       closeFurniture();
-    } else if (addingPlan || pasteReady) {
-      addingPlan = false;
+    } else if (pasteReady) {
       pasteReady = false;
       render();
     } else if (calibrating()) {
@@ -2177,7 +2184,6 @@
     if (location.hash !== "#paste") return;
     history.replaceState(null, "", location.pathname + location.search);
     pasteReady = true;
-    addingPlan = false;
     render();
   }
   window.addEventListener("hashchange", checkPasteHash);

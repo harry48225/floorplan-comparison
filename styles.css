@@ -215,8 +215,38 @@ input[type="range"] {
   padding: 8px 12px;
 }
 
-/* Library button now lives in the right-hand tools toolbar (in flow). */
-.library-fab { box-shadow: var(--shadow); }
+/* "＋ Add plan" — the toolbar's primary action, with its dropdown menu of
+   every way to get a plan in (file / library / Rightmove grab). */
+.add-wrap { position: relative; display: flex; }
+.add-plan { flex: 1; }
+.add-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 7;
+  width: 230px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
+}
+.tools-toolbar .add-menu button {
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+.tools-toolbar .add-menu button:hover { background: var(--accent-soft); }
+.add-hint {
+  margin: 4px 10px 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
 
 .zoom-toolbar {
   position: absolute;
@@ -314,11 +344,19 @@ input[type="range"] {
 .guide-body { margin: 0; color: var(--muted); }
 #guide-add-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
   margin-top: 12px;
 }
 #guide-add-row button { pointer-events: auto; }
+.guide-rm {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.guide-rm a { color: var(--muted); pointer-events: auto; }
+.guide-rm a:hover { color: var(--accent); }
 #guide-file {
   background: var(--accent);
   border-color: var(--accent);
@@ -626,7 +664,13 @@ input[type="range"] {
   box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
   padding: 14px 16px;
 }
-.help-title { margin: 0 0 8px; font-weight: 650; }
+.help-title { margin: 0 24px 8px 0; font-weight: 650; }
+.help-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 8px;
+}
 .help-pop ol { margin: 0; padding-left: 18px; color: var(--muted); }
 .help-pop li { margin: 8px 0; }
 
