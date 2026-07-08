@@ -26,6 +26,11 @@ window.Furniture = (() => {
       '<line x1=".78" y1=".3" x2=".78" y2=".95"/>' +
       '<line x1=".5" y1=".3" x2=".5" y2=".9"/>',
     sofaCorner: '<path d="M.05 .95 L.05 .05 L.55 .05 L.55 .55 L.95 .55 L.95 .95 Z"/>',
+    armchair:
+      '<rect x=".08" y=".08" width=".84" height=".84" rx=".1"/>' +
+      '<line x1=".08" y1=".32" x2=".92" y2=".32"/>' +
+      '<line x1=".28" y1=".32" x2=".28" y2=".92"/>' +
+      '<line x1=".72" y1=".32" x2=".72" y2=".92"/>',
     table:
       '<rect x=".28" y=".24" width=".44" height=".52" rx=".03"/>' +
       '<rect x=".32" y=".05" width=".36" height=".12" rx=".02"/>' +
@@ -65,6 +70,12 @@ window.Furniture = (() => {
       '<rect x=".06" y=".06" width=".88" height=".88" rx=".04"/>' +
       '<circle cx=".5" cy=".5" r=".33"/>' +
       '<circle cx=".5" cy=".5" r=".15"/>',
+    dishwasher:
+      '<rect x=".08" y=".05" width=".84" height=".9" rx=".03"/>' +
+      '<line x1=".08" y1=".2" x2=".92" y2=".2"/>' +
+      '<line x1=".3" y1=".32" x2=".3" y2=".85"/>' +
+      '<line x1=".5" y1=".32" x2=".5" y2=".85"/>' +
+      '<line x1=".7" y1=".32" x2=".7" y2=".85"/>',
     tv:
       '<rect x=".05" y=".4" width=".9" height=".5" rx=".03"/>' +
       '<rect x=".13" y=".12" width=".74" height=".12" rx=".02"/>' +
@@ -142,10 +153,9 @@ window.Furniture = (() => {
       '<rect x=".05" y=".05" width=".9" height=".9" rx=".02"/>' +
       '<line x1=".3833" y1=".05" x2=".3833" y2=".95"/>' +
       '<line x1=".6167" y1=".05" x2=".6167" y2=".95"/>' +
-      '<line x1=".34" y1=".42" x2=".34" y2=".58"/>' +
-      '<line x1=".43" y1=".42" x2=".43" y2=".58"/>' +
-      '<line x1=".57" y1=".42" x2=".57" y2=".58"/>' +
-      '<line x1=".66" y1=".42" x2=".66" y2=".58"/>',
+      '<line x1=".19" y1=".42" x2=".19" y2=".58"/>' +
+      '<line x1=".5" y1=".42" x2=".5" y2=".58"/>' +
+      '<line x1=".81" y1=".42" x2=".81" y2=".58"/>',
   };
 
   const CATALOG = [
@@ -157,13 +167,13 @@ window.Furniture = (() => {
         { id: "bed-double", name: "Double bed", w: 1.35, h: 1.9, icon: "bed" },
         { id: "bed-king", name: "King bed", w: 1.5, h: 2.0, icon: "bed" },
         { id: "bed-super-king", name: "Super king bed", w: 1.8, h: 2.0, icon: "bed" },
-        { id: "cot", name: "Cot", w: 0.7, h: 1.4, icon: "cot" },
+        { id: "cot", name: "Cot", w: 0.65, h: 1.25, icon: "cot" },
       ],
     },
     {
       category: "Seating",
       items: [
-        { id: "armchair", name: "Armchair", w: 0.9, h: 0.9, icon: "sofa" },
+        { id: "armchair", name: "Armchair", w: 0.9, h: 0.9, icon: "armchair" },
         { id: "sofa-2", name: "2-seat sofa", w: 1.6, h: 0.9, icon: "sofa" },
         { id: "sofa-3", name: "3-seat sofa", w: 2.1, h: 0.95, icon: "sofa" },
         { id: "sofa-corner", name: "Corner sofa", w: 2.4, h: 2.0, icon: "sofaCorner" },
@@ -209,7 +219,7 @@ window.Furniture = (() => {
       items: [
         { id: "fridge", name: "Fridge-freezer", w: 0.6, h: 0.6, icon: "fridge" },
         { id: "washer", name: "Washing machine", w: 0.6, h: 0.6, icon: "washer" },
-        { id: "dishwasher", name: "Dishwasher", w: 0.6, h: 0.6, icon: "washer" },
+        { id: "dishwasher", name: "Dishwasher", w: 0.6, h: 0.6, icon: "dishwasher" },
       ],
     },
     {
