@@ -353,8 +353,14 @@ input[type="range"] {
   pointer-events: auto; /* the image is draggable / occludes boxes below */
 }
 /* The baked bitmap sits above the raw img purely as display; clicks fall
-   through to the raw img beneath, which stays the drag/hit target. */
-.layer img.baked { pointer-events: none; }
+   through to the raw img beneath, which stays the drag/hit target.
+   will-change keeps it on its own composited, rasterised layer even while it's
+   transparent, so revealing it (opacity 0 → 1) is a flash-free compositor flip
+   — Firefox otherwise skips painting a fully-transparent layer until it shows. */
+.layer img.baked {
+  pointer-events: none;
+  will-change: transform;
+}
 .stage.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* Guided onboarding message */

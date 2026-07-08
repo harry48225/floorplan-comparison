@@ -102,16 +102,9 @@
     const img = document.createElement("img");
     img.draggable = false;
     img.hidden = true;
-    // The baked overlay: a plain bitmap of the wall filter's result, shown on
-    // top of the raw img (which stays as the invisible drag/hit target) so that
-    // pan/zoom move a cheap texture instead of re-running the filter each frame.
-    const baked = document.createElement("img");
-    baked.draggable = false;
-    baked.hidden = true;
-    baked.className = "baked";
     const planSvg = document.createElementNS(SVGNS, "svg");
     planSvg.setAttribute("class", "area-plan");
-    layer.append(img, baked, planSvg);
+    layer.append(img, planSvg);
     layersEl.appendChild(layer);
 
     // Per-plan wall filter (tint + differential opacity); built by updatePlanFilter.
@@ -182,8 +175,8 @@
       id,
       name: opts.name || `Plan ${id}`,
       img,
-      baked,
-      bakedUrl: null, // object URL of the current baked bitmap, or null
+      baked: null, // current baked-bitmap <img> (a fresh one per bake), or null
+      bakedUrl: null, // object URL backing p.baked, or null
       bakeTimer: null, // debounce for scheduleBake
       bakeToken: 0, // bumped to invalidate any in-flight bake
       areaSvg: planSvg,
@@ -420,11 +413,11 @@
       // which is visible). Opacity + tint live in the filter/bake, rebuilt only
       // when they change — not here, which runs on every pan/zoom/drag.
       p.img.style.transform = transform;
-      p.baked.style.transform = transform;
+      if (p.baked) p.baked.style.transform = transform;
       if (!calibrating()) {
         const vis = peeking && p === topLoaded ? "hidden" : "visible";
         p.img.style.visibility = vis;
-        p.baked.style.visibility = vis;
+        if (p.baked) p.baked.style.visibility = vis;
       }
       updateCardContent(p);
     });
@@ -1485,7 +1478,7 @@
       if (!q.loaded) return;
       const vis = q === p ? "visible" : "hidden";
       q.img.style.visibility = vis;
-      q.baked.style.visibility = vis;
+      if (q.baked) q.baked.style.visibility = vis;
     });
     // The loupe magnifies a clone of the measured plan's image, plus a mirror
     // of the calibration overlay so the in-progress line shows inside it too.
@@ -1512,7 +1505,7 @@
     loupeContent.innerHTML = "";
     plans.forEach((q) => {
       q.img.style.visibility = "visible";
-      q.baked.style.visibility = "visible";
+      if (q.baked) q.baked.style.visibility = "visible";
     });
     render();
   }
@@ -1807,29 +1800,32 @@
       clearTimeout(p.bakeTimer);
       p.img.style.filter = "";
       p.img.style.opacity = "";
-      showBaked(p, false);
+      showRaw(p);
       return;
     }
     p.fxFilter.innerHTML = filterPrimitives(p);
-    // Show the live filter on the raw img until the fresh bake lands (hiding any
-    // now-stale baked bitmap avoids showing the old opacity/tint in the meantime).
+    // Show the live filter on the raw img for instant feedback; the bake then
+    // swaps in a cheap bitmap. The raw img stays at opacity 0 as the drag/hit
+    // target once a baked bitmap is up.
     p.img.style.filter = `url(#fx-${p.id})`;
     p.img.style.opacity = "";
-    showBaked(p, false);
+    showRaw(p);
     if (p.blob) scheduleBake(p); // remote/blobless plans can't bake; stay live
   }
 
-  // Toggle between the baked bitmap (on) and the raw img carrying the live
-  // filter (off). When baked is shown the raw img stays put at opacity 0 so it
-  // remains the drag/hit target and still occludes lower plans' boxes.
-  function showBaked(p, on) {
-    p.baked.hidden = !on;
-    if (on) {
-      p.img.style.filter = "";
-      p.img.style.opacity = "0";
-    } else if (p.img.style.opacity === "0") {
-      p.img.style.opacity = "";
-    }
+  // Reveal the raw (live-filter) image and retire the current baked bitmap. The
+  // element is removed one frame later so it keeps covering the raw until the
+  // raw's (re-computed) live filter has painted — no blank hand-off.
+  function showRaw(p) {
+    const old = p.baked;
+    const oldUrl = p.bakedUrl;
+    p.baked = null;
+    p.bakedUrl = null;
+    if (!old) return;
+    requestAnimationFrame(() => {
+      old.remove();
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+    });
   }
 
   function scheduleBake(p) {
@@ -1864,7 +1860,7 @@
         cv.getContext("2d").drawImage(svgImg, 0, 0, W, H);
         cv.toBlob((blob) => {
           if (!blob || token !== p.bakeToken) return;
-          applyBaked(p, URL.createObjectURL(blob));
+          applyBaked(p, URL.createObjectURL(blob), token);
         }, "image/png");
       };
       svgImg.onerror = () => URL.revokeObjectURL(svgUrl); // fall back to live filter
@@ -1873,12 +1869,39 @@
     reader.readAsDataURL(p.blob);
   }
 
-  function applyBaked(p, url) {
-    if (p.bakedUrl) URL.revokeObjectURL(p.bakedUrl);
-    p.bakedUrl = url;
-    p.baked.src = url;
-    showBaked(p, true);
-    render();
+  // Show a freshly-baked bitmap. Each bake gets its OWN <img>: reusing one
+  // element would briefly show its previous (stale) frame on reveal, because the
+  // promoted layer keeps the old raster — that was the "old colour" flash on
+  // re-tint. img.decode() guarantees the new element is paint-ready, so revealing
+  // it is a clean swap; the raw live-filter image is hidden only once it is up,
+  // and the previous baked element is then retired.
+  function applyBaked(p, url, token) {
+    const el = new Image();
+    el.className = "baked";
+    el.draggable = false;
+    el.style.opacity = "0";
+    el.src = url;
+    el.decode()
+      .then(() => {
+        if (token !== p.bakeToken || !p.loaded) {
+          URL.revokeObjectURL(url); // superseded before it landed
+          return;
+        }
+        el.style.transform = p.img.style.transform;
+        el.style.visibility = p.img.style.visibility || "visible";
+        p.layer.insertBefore(el, p.areaSvg); // above the raw img, below its boxes
+        const old = p.baked;
+        const oldUrl = p.bakedUrl;
+        p.baked = el;
+        p.bakedUrl = url;
+        el.style.opacity = "1"; // fresh + decoded → shows straight away, no flash
+        p.img.style.filter = "";
+        p.img.style.opacity = "0";
+        if (old) old.remove();
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        render();
+      })
+      .catch(() => URL.revokeObjectURL(url)); // decode failed — keep the live filter
   }
 
   // Clicking anywhere outside an open panel closes it (each panel's own
