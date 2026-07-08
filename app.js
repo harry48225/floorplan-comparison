@@ -83,7 +83,6 @@
   const confirmRow = document.getElementById("confirm-row");
   const saveLibRow = document.getElementById("save-lib-row");
   const saveLibCheck = document.getElementById("save-lib");
-  const saveLibNote = document.getElementById("save-lib-note");
   const guideAddRow = document.getElementById("guide-add-row");
   const guideFileBtn = document.getElementById("guide-file");
   const guideLibBtn = document.getElementById("guide-library");
@@ -340,20 +339,6 @@
     reader.readAsDataURL(file);
   }
 
-  // Direct image URL (e.g. pasted from the bookmarklet). Can't be saved (CORS).
-  function loadFromUrl(url) {
-    url = url.trim();
-    if (/\.(jpe?g|png|gif|webp)(\?|#|$)/i.test(url)) {
-      const p = addPlan({ save: false });
-      p.fromUrl = true; // can't be saved to the library (no readable Blob)
-      p.url = url;
-      setImageSrc(p, url, null, null);
-      showHint("Loading image…", 1500);
-      return;
-    }
-    showHint('Paste a floorplan image URL, or use the “Grab Floorplan” bookmarklet.', 4500);
-  }
-
   // Scale so the image fits ~90% of the stage.
   function fitScale(p) {
     const r = stage.getBoundingClientRect();
@@ -595,19 +580,9 @@
 
     guide.classList.toggle("hidden", !show);
     confirmRow.classList.toggle("hidden", !confirm);
-    // In the confirm step: show the save checkbox if savable, else (for a
-    // URL-loaded plan that can't be saved) explain why.
+    // In the confirm step: offer the save checkbox when the plan can be saved.
     const showSave = confirm && canSave(calibPending.plan);
-    const showNote = confirm && !canSave(calibPending.plan) && calibPending.plan.fromUrl;
     saveLibRow.classList.toggle("hidden", !showSave);
-    saveLibNote.classList.toggle("hidden", !showNote);
-    if (showNote) {
-      const u = escapeHtml(calibPending.plan.url || "");
-      saveLibNote.innerHTML =
-        `Loaded from a URL, so it can't be saved directly. ` +
-        `<a href="${u}" target="_blank" rel="noopener">Open the image</a>, right-click → ` +
-        `Copy image, then come back and paste it here to save it to your library.`;
-    }
     guideAddRow.classList.toggle("hidden", !adding);
     guideLibBtn.classList.toggle("hidden", !libHasPlans); // only offer a non-empty library
     guideTitle.textContent = title;
@@ -2300,6 +2275,15 @@
     render();
   });
 
+  // A pasted *link* isn't something we can use: the app needs the image bytes
+  // (to render, calibrate and save it). Point people at copying the image.
+  function warnCopyImage() {
+    showHint(
+      "That’s a link, not an image. Right-click the floor plan and choose “Copy image”, then paste it here.",
+      6000
+    );
+  }
+
   document.addEventListener("paste", (e) => {
     const item = [...(e.clipboardData?.items || [])].find((it) => it.type.startsWith("image/"));
     if (item) {
@@ -2310,7 +2294,7 @@
     const text = e.clipboardData?.getData("text")?.trim();
     if (text && /^https?:\/\//i.test(text)) {
       e.preventDefault();
-      loadFromUrl(text);
+      warnCopyImage();
     }
   });
 
@@ -2413,12 +2397,12 @@
           return;
         }
       }
-      // No image — a copied image *URL* still works (same as ⌘V, unsaveable).
+      // No image — a copied *link* can't be used; the app needs the image bytes.
       for (const it of items) {
         if (!it.types.includes("text/plain")) continue;
         const text = (await (await it.getType("text/plain")).text()).trim();
         if (/^https?:\/\//i.test(text)) {
-          loadFromUrl(text);
+          warnCopyImage();
           return;
         }
       }

@@ -416,17 +416,6 @@ input[type="range"] {
   cursor: pointer;
 }
 #save-lib-row input { pointer-events: auto; cursor: pointer; }
-#save-lib-note {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--muted);
-}
-#save-lib-note a {
-  pointer-events: auto;
-  color: var(--accent);
-  font-weight: 600;
-}
 
 #confirm-row {
   display: flex;
