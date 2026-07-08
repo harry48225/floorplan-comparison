@@ -102,9 +102,16 @@
     const img = document.createElement("img");
     img.draggable = false;
     img.hidden = true;
+    // The baked overlay: a plain bitmap of the wall filter's result, shown on
+    // top of the raw img (which stays as the invisible drag/hit target) so that
+    // pan/zoom move a cheap texture instead of re-running the filter each frame.
+    const baked = document.createElement("img");
+    baked.draggable = false;
+    baked.hidden = true;
+    baked.className = "baked";
     const planSvg = document.createElementNS(SVGNS, "svg");
     planSvg.setAttribute("class", "area-plan");
-    layer.append(img, planSvg);
+    layer.append(img, baked, planSvg);
     layersEl.appendChild(layer);
 
     // Per-plan wall filter (tint + differential opacity); built by updatePlanFilter.
@@ -175,6 +182,10 @@
       id,
       name: opts.name || `Plan ${id}`,
       img,
+      baked,
+      bakedUrl: null, // object URL of the current baked bitmap, or null
+      bakeTimer: null, // debounce for scheduleBake
+      bakeToken: 0, // bumped to invalidate any in-flight bake
       areaSvg: planSvg,
       card,
       nameEl,
@@ -275,10 +286,13 @@
     if (selectedPlan === p) selectedPlan = null;
     if (showCalibFor === p) showCalibFor = null;
     selected = null;
+    p.bakeToken++; // abandon any in-flight bake for this plan
+    clearTimeout(p.bakeTimer);
     p.layer.style.display = "none";
     p.card.style.display = "none";
     const finalize = () => {
       if (p.objUrl) URL.revokeObjectURL(p.objUrl);
+      if (p.bakedUrl) URL.revokeObjectURL(p.bakedUrl);
       p.layer.remove();
       p.card.remove();
       p.fxFilter.remove();
@@ -399,12 +413,19 @@
     const topLoaded = plans.filter((p) => p.loaded).pop();
     plans.forEach((p) => {
       if (!p.loaded) return;
-      p.img.style.transform =
+      const transform =
         `translate(${view.x}px, ${view.y}px) scale(${view.scale}) ` +
         `translate(${p.tx}px, ${p.ty}px) rotate(${p.rotation}deg) scale(${p.scale})`;
-      // Opacity + tint live in the plan's own filter (updatePlanFilter), rebuilt
-      // only when they change — not here, which runs on every pan/zoom/drag.
-      if (!calibrating()) p.img.style.visibility = peeking && p === topLoaded ? "hidden" : "visible";
+      // The baked overlay tracks the raw img exactly (updatePlanFilter decides
+      // which is visible). Opacity + tint live in the filter/bake, rebuilt only
+      // when they change — not here, which runs on every pan/zoom/drag.
+      p.img.style.transform = transform;
+      p.baked.style.transform = transform;
+      if (!calibrating()) {
+        const vis = peeking && p === topLoaded ? "hidden" : "visible";
+        p.img.style.visibility = vis;
+        p.baked.style.visibility = vis;
+      }
       updateCardContent(p);
     });
 
@@ -1461,7 +1482,10 @@
     stage.classList.add("measuring");
     // Show only the plan being measured.
     plans.forEach((q) => {
-      if (q.loaded) q.img.style.visibility = q === p ? "visible" : "hidden";
+      if (!q.loaded) return;
+      const vis = q === p ? "visible" : "hidden";
+      q.img.style.visibility = vis;
+      q.baked.style.visibility = vis;
     });
     // The loupe magnifies a clone of the measured plan's image, plus a mirror
     // of the calibration overlay so the in-progress line shows inside it too.
@@ -1486,7 +1510,10 @@
     stage.classList.remove("measuring");
     loupe.classList.add("hidden");
     loupeContent.innerHTML = "";
-    plans.forEach((q) => (q.img.style.visibility = "visible"));
+    plans.forEach((q) => {
+      q.img.style.visibility = "visible";
+      q.baked.style.visibility = "visible";
+    });
     render();
   }
 
@@ -1748,13 +1775,10 @@
   // True when p needs a filter at all (else the raw image shows through).
   const planNeedsFilter = (p) => p.tint != null || p.opacity < 1;
 
-  // (Re)build p's filter to match its current opacity + tint, and point the
-  // image at it (or clear the filter when the raw image would look identical).
-  function updatePlanFilter(p) {
-    if (!planNeedsFilter(p)) {
-      p.img.style.filter = "";
-      return;
-    }
+  // The filter primitives for p's current opacity + tint. SourceGraphic is the
+  // plan image, so this string works both in the live DOM filter and, unchanged,
+  // in the standalone SVG the bake rasterises (see bakePlan).
+  function filterPrimitives(p) {
     const restOp = p.opacity;
     const wallOp = 1 - (1 - p.opacity) ** 5;
     // Wall pixels: flood colour if tinted, else the original wall pixels.
@@ -1763,14 +1787,98 @@
         ? `<feFlood flood-color="${TINTS[p.tint].hex}" result="wc"></feFlood>` +
           `<feComposite in="wc" in2="mask" operator="in" result="wallpix"></feComposite>`
         : `<feComposite in="SourceGraphic" in2="mask" operator="in" result="wallpix"></feComposite>`;
-    p.fxFilter.innerHTML =
+    return (
       FX_MASK +
       wallSrc +
       `<feComponentTransfer in="wallpix" result="walls"><feFuncA type="linear" slope="${wallOp}"></feFuncA></feComponentTransfer>` +
       `<feComposite in="SourceGraphic" in2="mask" operator="out" result="restpix"></feComposite>` +
       `<feComponentTransfer in="restpix" result="rest"><feFuncA type="linear" slope="${restOp}"></feFuncA></feComponentTransfer>` +
-      `<feMerge><feMergeNode in="rest"></feMergeNode><feMergeNode in="walls"></feMergeNode></feMerge>`;
+      `<feMerge><feMergeNode in="rest"></feMergeNode><feMergeNode in="walls"></feMergeNode></feMerge>`
+    );
+  }
+
+  // Rebuild p's look for its current opacity + tint. The live SVG filter on the
+  // raw img gives instant feedback, but re-rasterises every zoom frame — so we
+  // also kick off a bake that flattens the result to a plain bitmap and shows
+  // that instead. Fully-opaque, untinted plans need neither.
+  function updatePlanFilter(p) {
+    if (!planNeedsFilter(p)) {
+      p.bakeToken++; // cancel any in-flight bake
+      clearTimeout(p.bakeTimer);
+      p.img.style.filter = "";
+      p.img.style.opacity = "";
+      showBaked(p, false);
+      return;
+    }
+    p.fxFilter.innerHTML = filterPrimitives(p);
+    // Show the live filter on the raw img until the fresh bake lands (hiding any
+    // now-stale baked bitmap avoids showing the old opacity/tint in the meantime).
     p.img.style.filter = `url(#fx-${p.id})`;
+    p.img.style.opacity = "";
+    showBaked(p, false);
+    if (p.blob) scheduleBake(p); // remote/blobless plans can't bake; stay live
+  }
+
+  // Toggle between the baked bitmap (on) and the raw img carrying the live
+  // filter (off). When baked is shown the raw img stays put at opacity 0 so it
+  // remains the drag/hit target and still occludes lower plans' boxes.
+  function showBaked(p, on) {
+    p.baked.hidden = !on;
+    if (on) {
+      p.img.style.filter = "";
+      p.img.style.opacity = "0";
+    } else if (p.img.style.opacity === "0") {
+      p.img.style.opacity = "";
+    }
+  }
+
+  function scheduleBake(p) {
+    clearTimeout(p.bakeTimer);
+    const token = ++p.bakeToken; // invalidate any earlier in-flight bake
+    p.bakeTimer = setTimeout(() => bakePlan(p, token), 150);
+  }
+
+  // Flatten p's wall filter to a plain PNG at natural resolution by rasterising
+  // a standalone SVG (raw image bytes + the same filter) offscreen, then show it
+  // as the cheap overlay. Guarded by a token so a superseded bake is discarded.
+  function bakePlan(p, token) {
+    if (token !== p.bakeToken || !p.loaded || !p.blob || !planNeedsFilter(p)) return;
+    const W = p.img.naturalWidth;
+    const H = p.img.naturalHeight;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (token !== p.bakeToken) return;
+      const svg =
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">` +
+        `<filter id="f" color-interpolation-filters="sRGB">${filterPrimitives(p)}</filter>` +
+        `<image width="${W}" height="${H}" href="${reader.result}" filter="url(#f)"></image>` +
+        `</svg>`;
+      const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+      const svgImg = new Image();
+      svgImg.onload = () => {
+        URL.revokeObjectURL(svgUrl);
+        if (token !== p.bakeToken) return;
+        const cv = document.createElement("canvas");
+        cv.width = W;
+        cv.height = H;
+        cv.getContext("2d").drawImage(svgImg, 0, 0, W, H);
+        cv.toBlob((blob) => {
+          if (!blob || token !== p.bakeToken) return;
+          applyBaked(p, URL.createObjectURL(blob));
+        }, "image/png");
+      };
+      svgImg.onerror = () => URL.revokeObjectURL(svgUrl); // fall back to live filter
+      svgImg.src = svgUrl;
+    };
+    reader.readAsDataURL(p.blob);
+  }
+
+  function applyBaked(p, url) {
+    if (p.bakedUrl) URL.revokeObjectURL(p.bakedUrl);
+    p.bakedUrl = url;
+    p.baked.src = url;
+    showBaked(p, true);
+    render();
   }
 
   // Clicking anywhere outside an open panel closes it (each panel's own

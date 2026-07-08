@@ -352,6 +352,9 @@ input[type="range"] {
   -webkit-user-drag: none;
   pointer-events: auto; /* the image is draggable / occludes boxes below */
 }
+/* The baked bitmap sits above the raw img purely as display; clicks fall
+   through to the raw img beneath, which stays the drag/hit target. */
+.layer img.baked { pointer-events: none; }
 .stage.dragover { outline: 2px dashed var(--accent); outline-offset: -6px; }
 
 /* Guided onboarding message */
