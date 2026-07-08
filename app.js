@@ -2261,6 +2261,21 @@
 
   // ---- About modal ----
   const aboutModal = document.getElementById("about");
+  // Show the deployed commit (stamped into index.html by the Pages workflow).
+  // On file:// / local dev the placeholder is never replaced, so fall back to text.
+  const commitEl = document.getElementById("about-commit");
+  const commitSha = commitEl.dataset.commit;
+  if (/^[0-9a-f]{7,40}$/.test(commitSha)) {
+    const a = document.createElement("a");
+    a.href =
+      "https://github.com/harry48225/floorplan-comparison/commit/" + commitSha;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = commitSha.slice(0, 7);
+    commitEl.replaceChildren(a);
+  } else {
+    commitEl.textContent = "local dev";
+  }
   document.getElementById("about-btn").addEventListener("click", () =>
     aboutModal.classList.remove("hidden")
   );
