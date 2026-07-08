@@ -327,7 +327,7 @@
     p.unitsPerPx = p.pendingUpp;
     p.img.hidden = false;
     updatePlanFilter(p);
-    render();
+    renderNow(); // paint the image in position this frame — no unplaced flash
     continueCalibration();
   }
 
@@ -391,7 +391,21 @@
   }
 
   // ---- Rendering ----
+  // render() coalesces into one renderNow() per animation frame: a burst of
+  // pointer events (pan/drag/zoom fire faster than the display refreshes) can't
+  // stack multiple synchronous renders — each with a forced layout — in a single
+  // frame. Load paths that must paint the image in position call renderNow.
+  let renderQueued = false;
   function render() {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => {
+      renderQueued = false;
+      renderNow();
+    });
+  }
+
+  function renderNow() {
     stage.classList.toggle("confirming", !!calibPending);
     stage.classList.toggle("placing", !!furnPlacing);
 
@@ -406,8 +420,18 @@
       // Opacity + tint live in the plan's own filter (updatePlanFilter), rebuilt
       // only when they change — not here, which runs on every pan/zoom/drag.
       if (!calibrating()) p.img.style.visibility = peeking && p === topLoaded ? "hidden" : "visible";
-      positionCard(p);
+      updateCardContent(p);
     });
+
+    // Position cards in read-then-write passes: read every card's size (a single
+    // forced layout for all of them), then write every card's position — so a
+    // position write never forces a fresh reflow before the next card's read.
+    const cardRect = stage.getBoundingClientRect();
+    const cardGeo = [];
+    plans.forEach((p) => {
+      if (p.loaded) cardGeo.push({ p, bw: p.card.offsetWidth || 90, bh: p.card.offsetHeight || 28 });
+    });
+    cardGeo.forEach((g) => placeCard(g.p, g.bw, g.bh, cardRect));
 
     renderAreas();
     renderPlanUI();
@@ -505,11 +529,12 @@
     scaleBar.classList.remove("hidden");
   }
 
-  // Tuck a plan's card just inside its top-left (0,0) corner.
-  function positionCard(p) {
-    p.card.classList.toggle("show", p.loaded);
+  // A loaded plan's card content (classes + text). Split from placeCard so
+  // render() can write every card's content before reading any card's size —
+  // otherwise each size read forces its own reflow after the previous write.
+  function updateCardContent(p) {
+    p.card.classList.add("show");
     p.card.classList.toggle("sel", selectedPlan === p); // small screens: full controls only when selected
-    if (!p.loaded) return;
     p.nameEl.textContent = p.name;
     // Recalibrate once calibrated; show-calibration when a line is stored;
     // save when savable + unsaved.
@@ -528,10 +553,11 @@
       ? `${rooms.length} room${rooms.length === 1 ? "" : "s"} · ${total.toFixed(1)} m²`
       : "";
     p.totalEl.classList.toggle("hidden", !rooms.length);
+  }
 
-    const r = stage.getBoundingClientRect();
-    const bw = p.card.offsetWidth || 90;
-    const bh = p.card.offsetHeight || 28;
+  // Tuck a plan's card just inside its top-left (0,0) corner. bw/bh (the card's
+  // measured size) and r (the stage rect) are read together by render() up front.
+  function placeCard(p, bw, bh, r) {
     const corner = planToScreen(p, 0, 0);
     const ctr = planCentreScreen(p);
     const pad = 4;
@@ -593,10 +619,28 @@
   let lastX = 0;
   let lastY = 0;
 
+  // While a gesture is actively transforming plans, hint the compositor to keep
+  // each plan image on its own layer. This pre-promotes them — killing the
+  // rasterisation hitch at the very start of a drag/rotate — and lets a zoom
+  // scale the cached wall-filter texture instead of re-running the expensive
+  // filter every frame (it re-sharpens once the gesture settles). Cleared a
+  // short while after interaction stops so the layers don't linger in memory.
+  let interactionTimer = null;
+  function markInteracting() {
+    if (interactionTimer === null)
+      for (const p of plans) if (p.loaded) p.img.style.willChange = "transform";
+    clearTimeout(interactionTimer);
+    interactionTimer = setTimeout(() => {
+      interactionTimer = null;
+      for (const p of plans) if (p.loaded) p.img.style.willChange = "";
+    }, 200);
+  }
+
   function startDrag(e, d) {
     drag = d;
     lastX = e.clientX;
     lastY = e.clientY;
+    markInteracting();
     stage.setPointerCapture(e.pointerId);
   }
 
@@ -660,6 +704,7 @@
 
   stage.addEventListener("pointermove", (e) => {
     if (!drag) return;
+    markInteracting();
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     if (drag.kind === "view") {
@@ -748,6 +793,7 @@
     view.x = px - (ns / view.scale) * (px - view.x);
     view.y = py - (ns / view.scale) * (py - view.y);
     view.scale = ns;
+    markInteracting();
     render();
   }
 
@@ -1367,6 +1413,7 @@
     if (!selectedPlan || !e.target.classList.contains("plan-rot")) return;
     e.stopPropagation();
     planRotating = true;
+    markInteracting();
     planUiSvg.setPointerCapture(e.pointerId);
   });
   planUiSvg.addEventListener("pointermove", (e) => {
@@ -1404,6 +1451,7 @@
     p.tx += before.x - after.x;
     p.ty += before.y - after.y;
     p.rotation += deltaDeg;
+    markInteracting();
     render();
   }
 
