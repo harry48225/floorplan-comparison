@@ -76,10 +76,10 @@ window.Furniture = (() => {
       '<line x1=".3" y1=".1" x2=".7" y2=".1"/>' +
       '<line x1=".4" y1=".5" x2=".6" y2=".5"/>',
     bikeVertical:
-      '<circle cx=".5" cy=".58" r=".3"/>' +
-      '<circle cx=".5" cy=".58" r=".05"/>' +
-      '<line x1=".5" y1=".14" x2=".5" y2=".28"/>' +
-      '<line x1=".28" y1=".14" x2=".72" y2=".14"/>',
+      '<line x1=".5" y1=".08" x2=".5" y2=".92"/>' +
+      '<line x1=".18" y1=".2" x2=".82" y2=".2"/>' +
+      '<ellipse cx=".5" cy=".4" rx=".2" ry=".06"/>' +
+      '<ellipse cx=".5" cy=".82" rx=".2" ry=".06"/>',
     tableRound:
       '<circle cx=".5" cy=".5" r=".28"/>' +
       '<rect x=".38" y=".04" width=".24" height=".12" rx=".03"/>' +
@@ -219,7 +219,7 @@ window.Furniture = (() => {
         { id: "piano-upright", name: "Upright piano", w: 1.5, h: 0.6, icon: "piano" },
         { id: "lamp-floor", name: "Floor lamp", w: 0.4, h: 0.4, icon: "lamp" },
         { id: "bike", name: "Bike", w: 0.6, h: 1.8, icon: "bike" },
-        { id: "bike-vertical", name: "Bike (vertical)", w: 0.5, h: 0.45, icon: "bikeVertical" },
+        { id: "bike-vertical", name: "Bike (vertical)", w: 0.6, h: 0.35, icon: "bikeVertical" },
       ],
     },
   ];

@@ -1113,14 +1113,23 @@
       (group) =>
         `<div class="furn-cat">${escapeHtml(group.category)}</div>` +
         group.items
-          .map(
-            (it) =>
+          .map((it) => {
+            // Size the swatch to the piece's real proportions (longest side 40px),
+            // stretching the unit-box icon into it (preserveAspectRatio="none") just
+            // like the canvas does, so the preview shows the true footprint shape.
+            const m = Math.max(it.w, it.h);
+            const iw = ((it.w / m) * 40).toFixed(1);
+            const ih = ((it.h / m) * 40).toFixed(1);
+            return (
               `<button class="furn-item" type="button" data-id="${it.id}">` +
-              `<svg class="furn-ic" viewBox="0 0 1 1" aria-hidden="true">${Furniture.ICONS[it.icon] || ""}</svg>` +
+              `<span class="furn-ic-box">` +
+              `<svg class="furn-ic" width="${iw}" height="${ih}" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">${Furniture.ICONS[it.icon] || ""}</svg>` +
+              `</span>` +
               `<span class="furn-item-name">${escapeHtml(it.name)}</span>` +
               `<span class="furn-item-dim">${it.w.toFixed(2)} × ${it.h.toFixed(2)} m</span>` +
               `</button>`
-          )
+            );
+          })
           .join("")
     ).join("");
   }
