@@ -454,6 +454,8 @@ input[type="range"] {
 }
 .area-layer { z-index: 2; }
 .area-layer.active { pointer-events: auto; cursor: crosshair; }
+/* Selected box's plan lifts above other plans' images so its handles stay on top. */
+.area-plan.raised { z-index: 2; }
 
 .area-plan polygon,
 .area-layer polygon {

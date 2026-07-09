@@ -941,8 +941,12 @@
       else byPlan.set(a.plan, byPlan.get(a.plan) + s);
     });
 
+    // The selected box's plan is raised above the other plans' images so its
+    // handles stay on top and clickable even where an upper plan overlaps it.
+    const selPlan = selected != null && !areaDraw && areas[selected] ? areas[selected].plan : null;
     plans.forEach((p) => {
       p.areaSvg.innerHTML = byPlan.get(p) || "";
+      p.areaSvg.classList.toggle("raised", p === selPlan);
     });
 
     if (areaDraw && areaCursor) {
