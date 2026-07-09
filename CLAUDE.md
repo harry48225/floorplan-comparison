@@ -99,10 +99,11 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   A `"meta"` record in the `session` store (the `view` + per-plan
   `{ sid, name, libId, save, created, unitsPerPx, calibLine, tx, ty, scale, rotation,
   opacity, tint, locked, annotations }`, loaded plans only, in stack order) is rewritten
-  on a 2 s trailing debounce from `renderNow()` (`scheduleSessionSave`; flushed on
-  `pagehide`, which is what makes leaving mid-debounce safe) — every persistent state
-  change funnels through render, so that one hook covers pan/zoom, drags,
-  tint/opacity/lock, calibration, and box edits. Each plan's
+  on a 1 s **throttle** from `renderNow()` (`scheduleSessionSave` — the first change
+  schedules the write and later changes don't push it back, so a save lands within 1 s
+  even during continuous interaction; a still-pending write is flushed on `pagehide`) —
+  every persistent state change funnels through render, so that one hook covers
+  pan/zoom, drags, tint/opacity/lock, calibration, and box edits. Each plan's
   image bytes go in once under `"img:<sid>"` (`p.sid`, assigned in `addPlan`; written by
   `onImageLoaded`, skipped when `p.sessionImgSaved`, deleted in `destroyPlan`).
   `restoreSession()` at startup rebuilds the stack (`p.pendingState` carries

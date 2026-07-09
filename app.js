@@ -1086,8 +1086,8 @@
 
   // ---- Session: the open workspace survives leaving/refreshing the page. ----
   // A "meta" record (view + per-plan state incl. annotations) is rewritten on a
-  // trailing debounce from renderNow() — every persistent state change funnels
-  // through render. Each plan's image bytes are stored once, under "img:<sid>"
+  // throttle from renderNow() — every persistent state change funnels through
+  // render. Each plan's image bytes are stored once, under "img:<sid>"
   // (see onImageLoaded); restoreSession() rebuilds everything at startup.
   let sessionRestoring = PlanStore.available(); // guide + saves wait for restore
   let sessionTimer = null;
@@ -1144,14 +1144,17 @@
     );
   }
 
+  // Throttle, not debounce: the first change schedules the write and later
+  // changes don't push it back, so a save lands within 1 s of the first change
+  // even during continuous interaction (the write reads current state anyway).
   function scheduleSessionSave() {
     if (sessionRestoring || !PlanStore.available()) return;
     saveState.textContent = "Saving…";
-    clearTimeout(sessionTimer);
-    sessionTimer = setTimeout(writeSessionMeta, 2000);
+    if (sessionTimer !== null) return; // a write is already on its way
+    sessionTimer = setTimeout(writeSessionMeta, 1000);
   }
 
-  // Flush a save still mid-debounce when the page is left (best effort).
+  // Flush a still-pending write when the page is left (best effort).
   window.addEventListener("pagehide", () => {
     if (sessionTimer !== null) writeSessionMeta();
   });
