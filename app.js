@@ -76,6 +76,7 @@
   const furnitureBtn = document.getElementById("furniture-btn");
   const clearBtn = document.getElementById("clear-btn");
   const saveStatus = document.getElementById("save-status");
+  const saveState = document.getElementById("save-state");
   const furniturePanel = document.getElementById("furniture");
   const furnGrid = document.getElementById("furn-grid");
   const hint = document.getElementById("hint");
@@ -1123,24 +1124,31 @@
     sessionTimer = null;
     const meta = sessionMeta();
     const json = JSON.stringify(meta);
+    const saved = () => {
+      saveState.textContent = "✓ Saved";
+      saveStatus.classList.remove("error"); // reassurance note is true again
+    };
     if (json === sessionLastMeta) {
-      saveStatus.textContent = "✓ Saved"; // nothing changed since the last write
+      saved(); // nothing changed since the last write
       return;
     }
     PlanStore.sessionPut(meta).then(
       () => {
         sessionLastMeta = json;
-        saveStatus.textContent = "✓ Saved";
+        saved();
       },
-      () => (saveStatus.textContent = "⚠ Not saved")
+      () => {
+        saveState.textContent = "⚠ Not saved";
+        saveStatus.classList.add("error"); // hide "you can refresh" — it's not true
+      }
     );
   }
 
   function scheduleSessionSave() {
     if (sessionRestoring || !PlanStore.available()) return;
-    saveStatus.textContent = "Saving…";
+    saveState.textContent = "Saving…";
     clearTimeout(sessionTimer);
-    sessionTimer = setTimeout(writeSessionMeta, 500);
+    sessionTimer = setTimeout(writeSessionMeta, 2000);
   }
 
   // Flush a save still mid-debounce when the page is left (best effort).
