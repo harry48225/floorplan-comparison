@@ -111,6 +111,9 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   `sessionRestoring` so the empty-canvas card doesn't flash. Saves are skipped during
   the restore so a half-built stack can't clobber the stored one. Refreshing
   mid-calibration restores the plan uncalibrated and drops straight back into measuring.
+  The **autosave chip** (`#save-status`, bottom-left) flips "Saving…" → "✓ Saved" as the
+  write lands (its title says it's safe to leave/refresh); it hides on an empty canvas,
+  and `writeSessionMeta` skips the IDB write when the meta JSON is unchanged.
 - **Move a plan:** drag it, or **nudge the selected plan with the arrow keys** (1 screen px;
   Shift = 10). **Remove a plan from the canvas:** the ✕ on its card (does not touch the
   library; undoable via the toast). **Pan the view:** drag empty canvas. **Zoom:** wheel or

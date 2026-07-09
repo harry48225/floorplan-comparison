@@ -75,6 +75,7 @@
   const scaleImperialLabel = scaleBar.querySelector(".scale-imperial-label");
   const furnitureBtn = document.getElementById("furniture-btn");
   const clearBtn = document.getElementById("clear-btn");
+  const saveStatus = document.getElementById("save-status");
   const furniturePanel = document.getElementById("furniture");
   const furnGrid = document.getElementById("furn-grid");
   const hint = document.getElementById("hint");
@@ -500,6 +501,8 @@
     }
     areaBtn.disabled = distBtn.disabled = furnitureBtn.disabled = !toolsReady;
     clearBtn.disabled = !plans.length;
+    // The autosave chip only matters once there's something worth keeping.
+    saveStatus.classList.toggle("hidden", !plans.length || !PlanStore.available() || sessionRestoring);
     peekBtn.disabled = plans.filter((p) => p.loaded).length < 2; // nothing underneath to peek at
 
     updateGuide();
@@ -1087,6 +1090,7 @@
   // (see onImageLoaded); restoreSession() rebuilds everything at startup.
   let sessionRestoring = PlanStore.available(); // guide + saves wait for restore
   let sessionTimer = null;
+  let sessionLastMeta = null; // JSON of the last-written meta, to skip no-op writes
 
   function sessionMeta() {
     return {
@@ -1117,11 +1121,24 @@
   function writeSessionMeta() {
     clearTimeout(sessionTimer);
     sessionTimer = null;
-    PlanStore.sessionPut(sessionMeta()).catch(() => {});
+    const meta = sessionMeta();
+    const json = JSON.stringify(meta);
+    if (json === sessionLastMeta) {
+      saveStatus.textContent = "✓ Saved"; // nothing changed since the last write
+      return;
+    }
+    PlanStore.sessionPut(meta).then(
+      () => {
+        sessionLastMeta = json;
+        saveStatus.textContent = "✓ Saved";
+      },
+      () => (saveStatus.textContent = "⚠ Not saved")
+    );
   }
 
   function scheduleSessionSave() {
     if (sessionRestoring || !PlanStore.available()) return;
+    saveStatus.textContent = "Saving…";
     clearTimeout(sessionTimer);
     sessionTimer = setTimeout(writeSessionMeta, 500);
   }

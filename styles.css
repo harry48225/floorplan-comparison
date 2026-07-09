@@ -309,6 +309,23 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
+/* Autosave status chip (bottom-left): flips "Saving…" → "✓ Saved" as the
+   debounced session write lands; its title explains it's safe to refresh. */
+.save-status {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 5;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  user-select: none;
+}
+
 /* Dynamic map-style scale bar (bottom, left of the zoom buttons): one shared
    baseline with a metric tick + label above and an imperial tick + label below,
    both measured from the shared right-hand origin. Widths/offsets set in JS. */
