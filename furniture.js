@@ -14,6 +14,8 @@ window.Furniture = (() => {
   // app.js affine-maps it onto the placed piece, so it scales and rotates with
   // the furniture. The "front"/head of a piece points to -y (up). Shapes are
   // stroked (fill:none) with a non-scaling stroke — see styles.css .furn-icon.
+  // Icons draw only the piece itself — no chairs/stools (they're separate
+  // catalogue items) — so the drawn shape fills the item's real footprint.
   const ICONS = {
     bed:
       '<rect x=".05" y=".04" width=".9" height=".92" rx=".05"/>' +
@@ -32,17 +34,11 @@ window.Furniture = (() => {
       '<line x1=".08" y1=".32" x2=".92" y2=".32"/>' +
       '<line x1=".28" y1=".32" x2=".28" y2=".92"/>' +
       '<line x1=".72" y1=".32" x2=".72" y2=".92"/>',
-    table:
-      '<rect x=".28" y=".24" width=".44" height=".52" rx=".03"/>' +
-      '<rect x=".32" y=".05" width=".36" height=".12" rx=".02"/>' +
-      '<rect x=".32" y=".83" width=".36" height=".12" rx=".02"/>' +
-      '<rect x=".05" y=".34" width=".12" height=".32" rx=".02"/>' +
-      '<rect x=".83" y=".34" width=".12" height=".32" rx=".02"/>',
+    table: '<rect x=".05" y=".05" width=".9" height=".9" rx=".03"/>',
     coffee: '<rect x=".12" y=".2" width=".76" height=".6" rx=".05"/>',
     desk:
-      '<rect x=".05" y=".08" width=".9" height=".42" rx=".02"/>' +
-      '<rect x=".38" y=".14" width=".24" height=".1" rx=".01"/>' +
-      '<circle cx=".5" cy=".74" r=".16"/>',
+      '<rect x=".05" y=".05" width=".9" height=".9" rx=".02"/>' +
+      '<rect x=".38" y=".12" width=".24" height=".14" rx=".01"/>',
     deskCorner:
       '<path d="M.05 .05 L.95 .05 L.95 .5 L.5 .5 L.5 .95 L.05 .95 Z"/>' +
       '<rect x=".14" y=".12" width=".22" height=".1" rx=".01"/>',
@@ -92,12 +88,7 @@ window.Furniture = (() => {
       '<line x1=".18" y1=".2" x2=".82" y2=".2"/>' +
       '<ellipse cx=".5" cy=".4" rx=".2" ry=".06"/>' +
       '<ellipse cx=".5" cy=".82" rx=".2" ry=".06"/>',
-    tableRound:
-      '<circle cx=".5" cy=".5" r=".28"/>' +
-      '<rect x=".38" y=".04" width=".24" height=".12" rx=".03"/>' +
-      '<rect x=".38" y=".84" width=".24" height=".12" rx=".03"/>' +
-      '<rect x=".04" y=".38" width=".12" height=".24" rx=".03"/>' +
-      '<rect x=".84" y=".38" width=".12" height=".24" rx=".03"/>',
+    tableRound: '<circle cx=".5" cy=".5" r=".45"/>',
     console:
       '<rect x=".05" y=".25" width=".9" height=".3" rx=".02"/>' +
       '<line x1=".07" y1=".55" x2=".07" y2=".85"/>' +
@@ -126,11 +117,10 @@ window.Furniture = (() => {
       '<line x1=".64" y1=".05" x2=".64" y2=".95"/>' +
       '<line x1=".78" y1=".05" x2=".78" y2=".95"/>',
     dressingTable:
-      '<rect x=".1" y=".18" width=".8" height=".5" rx=".02"/>' +
-      '<line x1=".5" y1=".18" x2=".5" y2=".68"/>' +
-      '<circle cx=".35" cy=".43" r=".03"/>' +
-      '<circle cx=".65" cy=".43" r=".03"/>' +
-      '<circle cx=".5" cy=".85" r=".1"/>',
+      '<rect x=".05" y=".05" width=".9" height=".9" rx=".02"/>' +
+      '<line x1=".5" y1=".05" x2=".5" y2=".95"/>' +
+      '<circle cx=".35" cy=".5" r=".03"/>' +
+      '<circle cx=".65" cy=".5" r=".03"/>',
     piano:
       '<rect x=".05" y=".1" width=".9" height=".55" rx=".02"/>' +
       '<rect x=".1" y=".65" width=".8" height=".18" rx=".02"/>' +
