@@ -2692,11 +2692,28 @@
     saveToLibrary(p);
   });
 
-  // Export the whole library to a JSON backup file.
-  document.getElementById("lib-export").addEventListener("click", async () => {
+  // ---- Backup (the toolbar's Backup menu): export / restore everything ----
+  // The bundle covers the saved-plan library and custom furniture — not the
+  // open workspace, which is transient and restored by the session store.
+  const backupBtn = document.getElementById("backup-btn");
+  const backupMenu = document.getElementById("backup-menu");
+  backupBtn.addEventListener("click", () => backupMenu.classList.toggle("hidden"));
+  backupMenu.addEventListener("click", (e) => {
+    if (e.target.closest("button")) backupMenu.classList.add("hidden"); // picking an item closes it
+  });
+  document.addEventListener("click", (e) => {
+    if (!backupMenu.contains(e.target) && e.target !== backupBtn) backupMenu.classList.add("hidden");
+  });
+  const countNoun = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+  const backupCounts = (plans, furniture) =>
+    [plans ? countNoun(plans, "plan") : "", furniture ? countNoun(furniture, "furniture item") : ""]
+      .filter(Boolean)
+      .join(" and ");
+
+  document.getElementById("backup-export").addEventListener("click", async () => {
     const bundle = await PlanStore.exportAll();
-    if (!bundle.plans.length) {
-      showHint("Your library is empty — nothing to export.", 2800);
+    if (!bundle.plans.length && !bundle.furniture.length) {
+      showHint("Nothing to back up yet — your library and custom furniture are empty.", 2800);
       return;
     }
     const url = URL.createObjectURL(new Blob([JSON.stringify(bundle)], { type: "application/json" }));
@@ -2709,15 +2726,15 @@
     a.download = `floorplans-backup-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showHint(`Exported ${bundle.plans.length} plan${bundle.plans.length === 1 ? "" : "s"}.`, 2400);
+    showHint(`Exported ${backupCounts(bundle.plans.length, bundle.furniture.length)}.`, 2400);
   });
 
-  // Restore a library from a JSON backup file (overwrites matching ids).
-  const libImportFile = document.getElementById("lib-import-file");
-  document.getElementById("lib-import").addEventListener("click", () => libImportFile.click());
-  libImportFile.addEventListener("change", async () => {
-    const file = libImportFile.files[0];
-    libImportFile.value = ""; // let the same file be re-picked later
+  // Restore from a JSON backup file (overwrites matching ids).
+  const backupImportFile = document.getElementById("backup-import-file");
+  document.getElementById("backup-import").addEventListener("click", () => backupImportFile.click());
+  backupImportFile.addEventListener("change", async () => {
+    const file = backupImportFile.files[0];
+    backupImportFile.value = ""; // let the same file be re-picked later
     if (!file) return;
     let bundle;
     try {
@@ -2727,10 +2744,11 @@
       return;
     }
     try {
-      const { added, skipped } = await PlanStore.importAll(bundle);
+      const { added, skipped, furniture } = await PlanStore.importAll(bundle);
       refreshLibrary();
       reloadCustomFurniture(); // imported custom furniture shows without a refresh
-      let msg = `Imported ${added} plan${added === 1 ? "" : "s"}.`;
+      ensurePersist(); // imports can happen without the library ever being opened
+      let msg = `Imported ${backupCounts(added, furniture) || "nothing"}.`;
       if (skipped) msg += ` ${skipped} skipped.`;
       showHint(msg, 2800);
     } catch (err) {
@@ -2751,6 +2769,8 @@
       aboutModal.classList.add("hidden");
     } else if (!addMenu.classList.contains("hidden")) {
       addMenu.classList.add("hidden");
+    } else if (!backupMenu.classList.contains("hidden")) {
+      backupMenu.classList.add("hidden");
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
     } else if (!furnForm.classList.contains("hidden")) {

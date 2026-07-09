@@ -242,6 +242,9 @@ input[type="range"] {
    every way to get a plan in (file / library / Rightmove grab). */
 .add-wrap { position: relative; display: flex; }
 .add-plan { flex: 1; }
+/* "Backup" reuses the add-menu dropdown styling for its export/import menu. */
+.backup-wrap { position: relative; display: flex; }
+.backup-wrap > button { flex: 1; }
 .add-menu {
   position: absolute;
   top: calc(100% + 6px);

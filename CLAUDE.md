@@ -92,9 +92,12 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   persistence is requested automatically on first open. The footer's size readout sums the
   stored blob bytes (`navigator.storage.estimate()` reports the whole origin and is heavily
   padded in Firefox). Remote-URL images can't be saved (no
-  Blob / tainted canvas). **Backup:** the Library footer has **Export** (whole library →
-  a self-contained JSON file; image bytes as base64 data URLs, layouts included) and **Import** (restore from
-  such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
+  Blob / tainted canvas). **Backup:** the tools toolbar's **Backup**
+  menu (`#backup-menu`, an add-menu-style dropdown, never disabled — a fresh browser with
+  an empty canvas is exactly when you'd import) offers **Export** (saved plans + custom
+  furniture → a self-contained JSON file; image bytes as base64 data URLs, layouts
+  included) and **Import** (restore from such a file — keeps original ids and overwrites
+  matches, so re-importing is idempotent; never includes the open workspace/session).
   See `PlanStore.exportAll` / `importAll`.
 - **Session (auto-restore):** the open workspace survives leaving/refreshing the page.
   A `"meta"` record in the `session` store (the `view` + per-plan
@@ -154,8 +157,10 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   picks a nice 1/2/5 ×10ⁿ distance ≤100 px, labelled in m/cm and ft/in (via `niceRound`).
   Hidden until at least one plan is calibrated.
 - **Tools toolbar** (floating, top-right): ＋ Add plan (with its dropdown menu), then the
-  three tools — Measure area, Tape measure, Furniture — each with an inline-SVG icon, and
-  **Clear all** at the bottom (danger-red on hover, disabled on an empty canvas): one
+  three tools — Measure area, Tape measure, Furniture — each with an inline-SVG icon, then
+  **Clear all** (danger-red on hover, disabled on an empty canvas), with **Backup** at the
+  bottom (its own add-menu-style dropdown: a why-you'd-want-this hint plus Export / Import
+  backup, see **Backup** below). Clear all is one
   undoable soft delete of every plan, box and the view (reset to `{0,0,1}`), mirroring
   `removePlan` — the library is never touched, and the session save after render persists
   the emptiness. The tool buttons are **disabled until some plan is loaded and

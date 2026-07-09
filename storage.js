@@ -194,6 +194,7 @@ window.PlanStore = (() => {
       }
       // Older backups have no furniture list; merge keeps original ids so
       // re-importing stays idempotent.
+      let furniture = 0;
       if (Array.isArray(bundle.furniture)) {
         for (const f of bundle.furniture) {
           if (!f || !f.name || !(f.w > 0) || !(f.h > 0)) continue;
@@ -206,9 +207,10 @@ window.PlanStore = (() => {
             created: f.created || Date.now(),
             updated: Date.now(),
           });
+          furniture++;
         }
       }
-      return { added, skipped };
+      return { added, skipped, furniture };
     },
   };
 })();
