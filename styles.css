@@ -320,12 +320,50 @@ input[type="range"] {
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* Custom-drawn to match the app: a thin --line track filled with accent up to
+   the thumb (--val, kept in sync by the slider's input handler) and a white
+   bordered thumb like the app's other round handles. Webkit and Gecko pseudo-
+   elements must stay in separate rules — an unknown pseudo kills the list. */
 .card-opacity {
   width: 64px;
+  margin-left: 8px; /* match the visual gap the buttons' hover-pill padding creates */
   pointer-events: auto;
   cursor: pointer;
-  accent-color: var(--accent);
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
 }
+.card-opacity::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--val, 100%), var(--line) var(--val, 100%));
+}
+.card-opacity::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px; /* centre the thumb on the 4px track */
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #a8aeb8; /* neutral at rest — accent would read as selected */
+  box-shadow: var(--shadow);
+}
+.card-opacity:hover::-webkit-slider-thumb { border-color: var(--accent); }
+.card-opacity::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--val, 100%), var(--line) var(--val, 100%));
+}
+.card-opacity::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1.5px solid #a8aeb8; /* neutral at rest — accent would read as selected */
+  box-shadow: var(--shadow);
+}
+.card-opacity:hover::-moz-range-thumb { border-color: var(--accent); }
 
 /* Autosave status chip (bottom-left): flips "Saving…" → "✓ Saved" as the
    throttled session write lands. The "safe to refresh" note only shows in

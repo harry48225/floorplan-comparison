@@ -233,9 +233,12 @@
       tint: "tint" in opts ? opts.tint : tintCounts.indexOf(Math.min(...tintCounts)),
       save: !!opts.save,
     };
+    const sliderFill = () => slider.style.setProperty("--val", slider.value + "%"); // accent track fill
     slider.value = opacity * 100;
+    sliderFill();
 
     slider.addEventListener("input", () => {
+      sliderFill();
       p.opacity = slider.value / 100;
       updatePlanFilter(p);
       render();
