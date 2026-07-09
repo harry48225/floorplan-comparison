@@ -231,6 +231,12 @@ input[type="range"] {
   pointer-events: none; /* keep e.target === the button for outside-click checks */
 }
 .tools-toolbar button span { pointer-events: none; } /* ditto */
+/* Clear all is destructive — read as such on hover (undo toast covers slips). */
+#clear-btn:hover:not(:disabled) {
+  color: #d7263d;
+  border-color: #d7263d;
+  background: #fdecee;
+}
 
 /* "＋ Add plan" — the toolbar's primary action, with its dropdown menu of
    every way to get a plan in (file / library / Rightmove grab). */

@@ -74,6 +74,7 @@
   const scaleMetricLabel = scaleBar.querySelector(".scale-metric-label");
   const scaleImperialLabel = scaleBar.querySelector(".scale-imperial-label");
   const furnitureBtn = document.getElementById("furniture-btn");
+  const clearBtn = document.getElementById("clear-btn");
   const furniturePanel = document.getElementById("furniture");
   const furnGrid = document.getElementById("furn-grid");
   const hint = document.getElementById("hint");
@@ -173,6 +174,7 @@
     const opacity = opts.opacity != null ? opts.opacity : plans.length === 0 ? 1 : 0.6;
     const p = {
       id,
+      sid: PlanStore.uuid(), // session image key; survives restores
       name: opts.name || `Plan ${id}`,
       img,
       baked: null, // current baked-bitmap <img> (a fresh one per bake), or null
@@ -202,11 +204,18 @@
       rotation: 0,
       unitsPerPx: null,
       opacity,
-      locked: false, // pinned: not pickable/draggable until unlocked
-      tint: tintCounts.indexOf(Math.min(...tintCounts)), // TINTS index | null
+      locked: !!opts.locked, // pinned: not pickable/draggable until unlocked
+      // Restores pass an explicit tint (null = none); otherwise auto-tint.
+      tint: "tint" in opts ? opts.tint : tintCounts.indexOf(Math.min(...tintCounts)),
       save: !!opts.save,
     };
     slider.value = opacity * 100;
+    if (p.locked) {
+      lockBtn.textContent = "🔒";
+      lockBtn.title = "Unlock this plan";
+      lockBtn.setAttribute("aria-pressed", "true");
+      lockBtn.classList.add("locked");
+    }
 
     slider.addEventListener("input", () => {
       p.opacity = slider.value / 100;
@@ -267,6 +276,17 @@
     return p;
   }
 
+  // Tear a removed plan down for real (its undo expired), dropping its DOM,
+  // object URLs, and session image record.
+  function destroyPlan(p) {
+    if (p.objUrl) URL.revokeObjectURL(p.objUrl);
+    if (p.bakedUrl) URL.revokeObjectURL(p.bakedUrl);
+    p.layer.remove();
+    p.card.remove();
+    p.fxFilter.remove();
+    if (PlanStore.available()) PlanStore.sessionDelete("img:" + p.sid).catch(() => {});
+  }
+
   // Soft-remove: the plan leaves the stack but its DOM lingers (hidden) so the
   // undo toast can bring it straight back; finalize tears it down for real.
   function removePlan(p) {
@@ -284,13 +304,7 @@
     clearTimeout(p.layoutTimer); // don't write the now-empty layout to the library
     p.layer.style.display = "none";
     p.card.style.display = "none";
-    const finalize = () => {
-      if (p.objUrl) URL.revokeObjectURL(p.objUrl);
-      if (p.bakedUrl) URL.revokeObjectURL(p.bakedUrl);
-      p.layer.remove();
-      p.card.remove();
-      p.fxFilter.remove();
-    };
+    const finalize = () => destroyPlan(p);
     if (!p.loaded) {
       finalize(); // a failed load: nothing worth restoring
     } else {
@@ -328,14 +342,25 @@
 
   function onImageLoaded(p) {
     p.loaded = true;
-    p.scale = fitScale(p);
-    p.rotation = 0;
-    centre(p);
+    if (p.pendingState) {
+      // Session restore: put the plan back exactly where it was.
+      Object.assign(p, p.pendingState); // tx, ty, scale, rotation
+      p.pendingState = null;
+    } else {
+      p.scale = fitScale(p);
+      p.rotation = 0;
+      centre(p);
+    }
     p.unitsPerPx = p.pendingUpp;
     if (p.pendingAnnotations) {
       // Restore the plan's saved layout, re-anchored to this plan object.
       for (const a of p.pendingAnnotations) areas.push({ ...a, plan: p });
       p.pendingAnnotations = null;
+    }
+    // Keep the workspace restorable: stash the image bytes once per plan.
+    if (p.blob && !p.sessionImgSaved && PlanStore.available()) {
+      p.sessionImgSaved = true;
+      PlanStore.sessionPut({ id: "img:" + p.sid, blob: p.blob, type: p.blob.type }).catch(() => {});
     }
     p.img.hidden = false;
     updatePlanFilter(p);
@@ -474,10 +499,12 @@
       hideHint();
     }
     areaBtn.disabled = distBtn.disabled = furnitureBtn.disabled = !toolsReady;
+    clearBtn.disabled = !plans.length;
     peekBtn.disabled = plans.filter((p) => p.loaded).length < 2; // nothing underneath to peek at
 
     updateGuide();
     updateScaleBar();
+    scheduleSessionSave(); // every persistent state change funnels through here
   }
 
   // Largest "nice" number (1/2/5 ×10ⁿ) not exceeding max.
@@ -576,7 +603,7 @@
   function updateGuide() {
     let title = "";
     let body = "";
-    let show = true;
+    let show = !sessionRestoring; // no "add a plan" flash before the restore lands
     let confirm = false;
     let adding = false;
 
@@ -1053,6 +1080,87 @@
     }, 400);
   }
 
+  // ---- Session: the open workspace survives leaving/refreshing the page. ----
+  // A "meta" record (view + per-plan state incl. annotations) is rewritten on a
+  // trailing debounce from renderNow() — every persistent state change funnels
+  // through render. Each plan's image bytes are stored once, under "img:<sid>"
+  // (see onImageLoaded); restoreSession() rebuilds everything at startup.
+  let sessionRestoring = PlanStore.available(); // guide + saves wait for restore
+  let sessionTimer = null;
+
+  function sessionMeta() {
+    return {
+      id: "meta",
+      view: { x: view.x, y: view.y, scale: view.scale },
+      plans: plans
+        .filter((p) => p.loaded)
+        .map((p) => ({
+          sid: p.sid,
+          name: p.name,
+          libId: p.libId,
+          save: p.save,
+          created: p.created,
+          unitsPerPx: p.unitsPerPx,
+          calibLine: p.calibLine,
+          tx: p.tx,
+          ty: p.ty,
+          scale: p.scale,
+          rotation: p.rotation,
+          opacity: p.opacity,
+          tint: p.tint,
+          locked: p.locked,
+          annotations: serializeLayout(p),
+        })),
+    };
+  }
+
+  function writeSessionMeta() {
+    clearTimeout(sessionTimer);
+    sessionTimer = null;
+    PlanStore.sessionPut(sessionMeta()).catch(() => {});
+  }
+
+  function scheduleSessionSave() {
+    if (sessionRestoring || !PlanStore.available()) return;
+    clearTimeout(sessionTimer);
+    sessionTimer = setTimeout(writeSessionMeta, 500);
+  }
+
+  // Flush a save still mid-debounce when the page is left (best effort).
+  window.addEventListener("pagehide", () => {
+    if (sessionTimer !== null) writeSessionMeta();
+  });
+
+  async function restoreSession() {
+    const meta = await PlanStore.sessionGet("meta");
+    const entries = (meta && meta.plans) || [];
+    const wasPasteReady = pasteReady; // addPlan clears it; keep the #paste prompt
+    for (const s of entries) {
+      const img = await PlanStore.sessionGet("img:" + s.sid).catch(() => null);
+      if (!img || !img.blob) continue;
+      const p = addPlan({ name: s.name, save: s.save, opacity: s.opacity, tint: s.tint, locked: s.locked });
+      p.sid = s.sid;
+      p.sessionImgSaved = true; // its bytes are already in the store
+      p.libId = s.libId || null;
+      p.calibLine = s.calibLine || null;
+      p.created = s.created || null;
+      p.pendingAnnotations = s.annotations || null;
+      p.pendingState = { tx: s.tx, ty: s.ty, scale: s.scale, rotation: s.rotation };
+      setImageSrc(p, URL.createObjectURL(img.blob), s.unitsPerPx, img.blob);
+    }
+    pasteReady = wasPasteReady;
+    if (meta && meta.view) {
+      view.x = meta.view.x;
+      view.y = meta.view.y;
+      view.scale = meta.view.scale;
+    }
+    // Drop image records orphaned by a crash between meta write and finalize.
+    const keep = new Set(entries.map((s) => "img:" + s.sid));
+    for (const rec of await PlanStore.sessionAll()) {
+      if (rec.id !== "meta" && !keep.has(rec.id)) PlanStore.sessionDelete(rec.id).catch(() => {});
+    }
+  }
+
   function setAreaTool(on) {
     areaTool = on;
     areaDraw = null;
@@ -1505,7 +1613,14 @@
     const cal = plans.filter((p) => p.loaded && p.unitsPerPx != null);
     if (cal.length < 2) return;
     const ref = cal[0];
-    cal.slice(1).forEach((p) => rescalePlan(p, ref.scale * (p.unitsPerPx / ref.unitsPerPx)));
+    let changed = false;
+    cal.slice(1).forEach((p) => {
+      const target = ref.scale * (p.unitsPerPx / ref.unitsPerPx);
+      if (Math.abs(target - p.scale) < 1e-9) return; // already matched (e.g. a restore)
+      rescalePlan(p, target);
+      changed = true;
+    });
+    if (!changed) return;
     render();
     showHint("Scales matched — drag to line the plans up.", 2600);
   }
@@ -1778,6 +1893,47 @@
   });
   areaBtn.addEventListener("click", () => setAreaTool(!areaTool));
   distBtn.addEventListener("click", () => setDistTool(!distTool));
+
+  // Clear all: empty the whole canvas (plans, boxes, view) in one undoable go.
+  // Like removePlan, it's a soft delete: DOM lingers hidden until finalized, and
+  // the library is never touched. The session save after render persists the
+  // emptiness, so a refresh after clearing stays clear.
+  clearBtn.addEventListener("click", () => {
+    if (!plans.length) return;
+    if (calibrating()) endMeasure(); // restore per-plan visibility before hiding
+    const removed = plans.splice(0);
+    const boxes = areas.splice(0);
+    const prevView = { x: view.x, y: view.y, scale: view.scale };
+    selected = null;
+    selectedPlan = null;
+    showCalibFor = null;
+    removed.forEach((p) => {
+      p.bakeToken++; // abandon any in-flight bake
+      clearTimeout(p.bakeTimer);
+      clearTimeout(p.layoutTimer); // never write an empty layout to the library
+      p.layer.style.display = "none";
+      p.card.style.display = "none";
+    });
+    view.x = 0;
+    view.y = 0;
+    view.scale = 1;
+    offerUndo(
+      "Cleared the canvas",
+      () => {
+        plans.push(...removed); // layers were never re-parented, so order holds
+        areas.push(...boxes);
+        Object.assign(view, prevView);
+        removed.forEach((p) => {
+          p.layer.style.display = "";
+          p.card.style.display = "";
+        });
+        render();
+        continueCalibration();
+      },
+      () => removed.forEach(destroyPlan)
+    );
+    render();
+  });
 
   // ---- Per-plan wall filter: tint + differential transparency ----
   // A "dark pixels" mask (morphologically opened so thin dark features — text,
@@ -2618,4 +2774,14 @@
   checkPasteHash();
 
   render();
+
+  // Bring back whatever was open last time (silently; empty canvas on failure).
+  if (PlanStore.available()) {
+    restoreSession()
+      .catch(() => {})
+      .finally(() => {
+        sessionRestoring = false;
+        render();
+      });
+  }
 })();

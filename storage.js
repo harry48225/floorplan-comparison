@@ -1,12 +1,15 @@
 // IndexedDB-backed store for calibrated floor plans.
 // Exposes window.PlanStore. Records: { id, name, blob, type, unitsPerPx,
 // width, height, thumb, created, updated }. See CLAUDE.md / PHASE2 spec.
+// A second "session" store holds the open workspace (see the session*
+// methods): a "meta" record plus one "img:<sid>" record per open plan.
 window.PlanStore = (() => {
   "use strict";
 
   const DB = "floorplan-overlay";
   const STORE = "plans";
-  const VERSION = 1;
+  const SESSION = "session"; // the open workspace, restored on next visit
+  const VERSION = 2;
   let dbPromise = null;
 
   function available() {
@@ -27,6 +30,9 @@ window.PlanStore = (() => {
           const os = db.createObjectStore(STORE, { keyPath: "id" });
           os.createIndex("created", "created");
         }
+        if (!db.objectStoreNames.contains(SESSION)) {
+          db.createObjectStore(SESSION, { keyPath: "id" });
+        }
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -35,11 +41,11 @@ window.PlanStore = (() => {
   }
 
   // Run a single request inside a transaction and resolve with its result.
-  function op(mode, fn) {
+  function op(store, mode, fn) {
     return open().then(
       (db) =>
         new Promise((resolve, reject) => {
-          const req = fn(db.transaction(STORE, mode).objectStore(STORE));
+          const req = fn(db.transaction(store, mode).objectStore(store));
           req.onsuccess = () => resolve(req.result);
           req.onerror = () => reject(req.error);
         })
@@ -64,19 +70,33 @@ window.PlanStore = (() => {
     available,
     uuid,
     save(rec) {
-      return op("readwrite", (s) => s.put(rec)).then(() => rec.id);
+      return op(STORE, "readwrite", (s) => s.put(rec)).then(() => rec.id);
     },
     get(id) {
-      return op("readonly", (s) => s.get(id));
+      return op(STORE, "readonly", (s) => s.get(id));
     },
     list() {
-      return op("readonly", (s) => s.getAll()).then((a) => a.sort((x, y) => y.created - x.created));
+      return op(STORE, "readonly", (s) => s.getAll()).then((a) => a.sort((x, y) => y.created - x.created));
     },
     count() {
-      return op("readonly", (s) => s.count());
+      return op(STORE, "readonly", (s) => s.count());
     },
     remove(id) {
-      return op("readwrite", (s) => s.delete(id));
+      return op(STORE, "readwrite", (s) => s.delete(id));
+    },
+
+    // --- Session: the open workspace (meta + one image record per plan) ---
+    sessionPut(rec) {
+      return op(SESSION, "readwrite", (s) => s.put(rec)).then(() => rec.id);
+    },
+    sessionGet(id) {
+      return op(SESSION, "readonly", (s) => s.get(id));
+    },
+    sessionDelete(id) {
+      return op(SESSION, "readwrite", (s) => s.delete(id));
+    },
+    sessionAll() {
+      return op(SESSION, "readonly", (s) => s.getAll());
     },
     async rename(id, name) {
       const rec = await this.get(id);

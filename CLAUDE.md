@@ -19,8 +19,9 @@ library entry points are hidden. Intended to be hosted publicly.
   the Rightmove-grab popover, and the Library/Furniture panels.
 - `styles.css` — light theme; all layout and the SVG overlay styling.
 - `app.js` — all app logic, wrapped in one IIFE. No modules, no framework.
-- `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper for saved plans (loaded
-  before `app.js`). No personal data is bundled in the repo.
+- `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper with two object stores —
+  `plans` (the saved-plan library) and `session` (the open workspace, see the
+  `session*` methods) — loaded before `app.js`. No personal data is bundled in the repo.
 - `furniture.js` — `window.Furniture = { CATALOG, ICONS }`: the standard furniture
   catalogue (real-world sizes in metres) and top-down icon schematics (loaded before
   `app.js`). Data only, no logic.
@@ -94,6 +95,22 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   a self-contained JSON file; image bytes as base64 data URLs, layouts included) and **Import** (restore from
   such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
   See `PlanStore.exportAll` / `importAll`.
+- **Session (auto-restore):** the open workspace survives leaving/refreshing the page.
+  A `"meta"` record in the `session` store (the `view` + per-plan
+  `{ sid, name, libId, save, created, unitsPerPx, calibLine, tx, ty, scale, rotation,
+  opacity, tint, locked, annotations }`, loaded plans only, in stack order) is rewritten
+  on a 500 ms trailing debounce from `renderNow()` (`scheduleSessionSave`; flushed on
+  `pagehide`) — every persistent state change funnels through render, so that one hook
+  covers pan/zoom, drags, tint/opacity/lock, calibration, and box edits. Each plan's
+  image bytes go in once under `"img:<sid>"` (`p.sid`, assigned in `addPlan`; written by
+  `onImageLoaded`, skipped when `p.sessionImgSaved`, deleted in `destroyPlan`).
+  `restoreSession()` at startup rebuilds the stack (`p.pendingState` carries
+  tx/ty/scale/rotation past `onImageLoaded`'s fit-and-centre defaults, and
+  `p.pendingAnnotations` the layout), restores the view, preserves `pasteReady`, and
+  sweeps orphaned `img:*` records; `updateGuide` keeps the guide hidden while
+  `sessionRestoring` so the empty-canvas card doesn't flash. Saves are skipped during
+  the restore so a half-built stack can't clobber the stored one. Refreshing
+  mid-calibration restores the plan uncalibrated and drops straight back into measuring.
 - **Move a plan:** drag it, or **nudge the selected plan with the arrow keys** (1 screen px;
   Shift = 10). **Remove a plan from the canvas:** the ✕ on its card (does not touch the
   library; undoable via the toast). **Pan the view:** drag empty canvas. **Zoom:** wheel or
@@ -129,9 +146,13 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   picks a nice 1/2/5 ×10ⁿ distance ≤100 px, labelled in m/cm and ft/in (via `niceRound`).
   Hidden until at least one plan is calibrated.
 - **Tools toolbar** (floating, top-right): ＋ Add plan (with its dropdown menu), then the
-  three tools — Measure area, Tape measure, Furniture — each with an inline-SVG icon. The
-  tool buttons are **disabled until some plan is loaded and calibrated**; `render()` also
-  disarms an armed tool if that last calibrated plan is removed.
+  three tools — Measure area, Tape measure, Furniture — each with an inline-SVG icon, and
+  **Clear all** at the bottom (danger-red on hover, disabled on an empty canvas): one
+  undoable soft delete of every plan, box and the view (reset to `{0,0,1}`), mirroring
+  `removePlan` — the library is never touched, and the session save after render persists
+  the emptiness. The tool buttons are **disabled until some plan is loaded and
+  calibrated**; `render()` also disarms an armed tool if that last calibrated plan is
+  removed.
 - **Measure area**: click two corners to draw a rectangle; it
   auto-exits and selects the box. Boxes show width/height + m². Select for handles (8 resize +
   rotate + delete ×). Stored `{ kind:"area", plan, cx, cy, w, h, angle }` in the owning plan's
