@@ -34,7 +34,7 @@ layer; the last is on top). Plans are added/removed at runtime; **always referen
 its object, never by a fixed index** (indices shift on add/remove).
 ```
 plan = { id, name, img, areaSvg, card, slider, layer, loaded, blob, objUrl,
-         tx, ty, scale, rotation, unitsPerPx, opacity, locked, tint, save }
+         tx, ty, scale, rotation, unitsPerPx, opacity, tint, save }
 ```
 Plans keep their load order in the stack — clicking one does **not** restack it (re-parenting
 a layer would invalidate its cached wall-filter and stutter the next drag).
@@ -102,12 +102,12 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Session (auto-restore):** the open workspace survives leaving/refreshing the page.
   A `"meta"` record in the `session` store (the `view` + per-plan
   `{ sid, name, libId, save, created, unitsPerPx, calibLine, tx, ty, scale, rotation,
-  opacity, tint, locked, annotations }`, loaded plans only, in stack order) is rewritten
+  opacity, tint, annotations }`, loaded plans only, in stack order) is rewritten
   on a 1 s **throttle** from `renderNow()` (`scheduleSessionSave` — the first change
   schedules the write and later changes don't push it back, so a save lands within 1 s
   even during continuous interaction; a still-pending write is flushed on `pagehide`) —
   every persistent state change funnels through render, so that one hook covers
-  pan/zoom, drags, tint/opacity/lock, calibration, and box edits. Each plan's
+  pan/zoom, drags, tint/opacity, calibration, and box edits. Each plan's
   image bytes go in once under `"img:<sid>"` (`p.sid`, assigned in `addPlan`; written by
   `onImageLoaded`, skipped when `p.sessionImgSaved`, deleted in `destroyPlan`).
   `restoreSession()` at startup rebuilds the stack (`p.pendingState` carries
@@ -127,12 +127,15 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   library; undoable via the toast). **Pan the view:** drag empty canvas. **Zoom:** wheel or
   the +/− toolbar; **⛶ fits every plan in view**.
 - **Peek:** hold **Space** to hide the top plan and see what's underneath.
-- **Lock:** the padlock on a plan's card pins it — locked plans are click-through
-  (`pickPlan` skips them), so they can't be selected, dragged, or nudged.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
-- **Opacity:** per-plan slider on the card tucked into the plan's top-left corner. The card
-  also shows a running total of the plan's measured rooms (`N rooms · X m²`). Opacity is
+- **Plan card** (tucked into the plan's top-left corner): name, room total
+  (`N rooms · X m²`), opacity slider, a **Calibration ▾** dropdown (`.card-calib-menu`:
+  Recalibrate… + Show/Hide calibration; one open at a time, closed by pick / outside
+  click / Esc), **● Save**, tint dot, and remove ✕. Visibility is **status-driven only**
+  (no dropdown until calibrated, Save only while unsaved+savable, total only with rooms) —
+  never selection-driven.
+- **Opacity:** per-plan slider on the card. Opacity is
   **differential** — the walls fade slower than the rest, so structure stays legible as a
   plan goes sheer: rest opacity = slider `o`, wall opacity = `1 − (1 − o)⁵` (e.g. at o=0.5
   the rooms are 50% transparent but the walls only ~3%). Both hit 0 at o=0 and 1 at o=1.

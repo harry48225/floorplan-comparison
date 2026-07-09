@@ -106,18 +106,21 @@ input[type="range"] {
 #layers { position: absolute; inset: 0; pointer-events: none; }
 .layer { position: absolute; inset: 0; pointer-events: none; }
 
-/* Per-plan opacity card (opacity slider + remove button). */
+/* Per-plan card: name, room total, opacity slider, calibration dropdown,
+   save, tint dot and remove — visibility is status-driven only (e.g. no
+   calibration dropdown until calibrated), never selection-driven. */
 #cards { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .card {
   position: absolute;
   display: none;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   white-space: nowrap;
-  background: rgba(255, 255, 255, .92);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 3px 6px;
+  border-radius: 12px;
+  padding: 4px 8px;
+  box-shadow: var(--shadow);
   pointer-events: none; /* children opt back in */
 }
 .card.show { display: flex; }
@@ -135,47 +138,59 @@ input[type="range"] {
   color: var(--muted);
   white-space: nowrap;
 }
-.card-recal,
-.card-show {
-  pointer-events: auto;
-  padding: 1px 7px;
-  border-radius: 5px;
-  font-size: 12px;
-  line-height: 1.6;
-}
+/* The card's text/icon buttons float: borderless and flat until hovered, all
+   cut to the same height. (The tint dot and its swatches keep their own round
+   styling.) */
+.card-calib,
+.card-save,
 .card-del {
   pointer-events: auto;
-  padding: 1px 6px;
-  border-radius: 5px;
+  border: none;
+  background: none;
+  box-shadow: none;
+  padding: 3px 8px;
+  border-radius: 8px;
   font-size: 12px;
-  line-height: 1;
-  color: #e5484d;
+  line-height: 1.4;
 }
-.card-lock {
+.card-calib:hover { background: rgba(16, 24, 40, .07); }
+/* Its two-item dropdown, hanging directly below the button (the wrap is the
+   positioned ancestor); same look as the toolbar's add-menu. */
+.card-calib-wrap { position: relative; display: inline-flex; }
+.card-calib-menu {
+  position: absolute;
+  top: calc(100% + 9px); /* clear the card's padding + border with a small gap */
+  left: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(16, 24, 40, .14);
   pointer-events: auto;
-  padding: 1px 6px;
-  border-radius: 5px;
+}
+.card-calib-menu button {
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 6px 10px;
+  border-radius: 6px;
   font-size: 12px;
-  line-height: 1;
+  text-align: left;
 }
-.card-lock.locked {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
+.card-calib-menu button:hover { background: var(--accent-soft); }
+.card-del { color: #e5484d; }
+.card-del:hover { background: rgba(229, 72, 77, .1); }
 .card-save {
-  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 1px 7px;
-  border-radius: 5px;
-  font-size: 12px;
-  line-height: 1.6;
   color: #92560c;
-  border-color: #e0a458;
-  background: #fff7ed;
 }
-.card-save:hover { background: #ffedd5; }
+.card-save:hover { background: rgba(226, 134, 13, .14); }
 .card-dot {
   width: 7px;
   height: 7px;
@@ -1114,13 +1129,6 @@ kbd {
     height: 18px;
   }
   .guide { max-width: calc(100vw - 120px); } /* clear the icon toolbar */
-  /* Slim plan cards: name + opacity + remove. Selecting the plan (a tap)
-     reveals the full controls, wrapping instead of overflowing. */
+  /* Cards wrap instead of overflowing the narrow viewport. */
   .card { flex-wrap: wrap; max-width: min(240px, 60vw); }
-  .card:not(.sel) .card-total,
-  .card:not(.sel) .card-recal,
-  .card:not(.sel) .card-show,
-  .card:not(.sel) .card-save,
-  .card:not(.sel) .card-tint,
-  .card:not(.sel) .card-lock:not(.locked) { display: none; } /* a locked plan can't be selected — keep its padlock reachable */
 }

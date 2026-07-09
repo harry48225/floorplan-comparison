@@ -97,6 +97,21 @@
   const SVGNS = "http://www.w3.org/2000/svg";
 
   // ---- Plan lifecycle ----
+
+  // Close every plan card's calibration dropdown (only one is ever open).
+  function closeCalibMenus() {
+    plans.forEach((q) => {
+      if (!q.calibMenu.classList.contains("hidden")) {
+        q.calibMenu.classList.add("hidden");
+        q.calibBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".card-calib") || e.target.closest(".card-calib-menu")) return;
+    closeCalibMenus();
+  });
+
   function addPlan(opts = {}) {
     pasteReady = false; // a plan is being added; dismiss the paste prompt
     const id = nextId++;
@@ -127,20 +142,32 @@
     slider.min = 0;
     slider.max = 100;
     slider.className = "card-opacity";
+    const calibBtn = document.createElement("button");
+    calibBtn.className = "card-calib";
+    calibBtn.type = "button";
+    calibBtn.textContent = "Calibration ▾";
+    calibBtn.title = "Recalibrate or show the calibration line";
+    calibBtn.setAttribute("aria-haspopup", "menu");
+    calibBtn.setAttribute("aria-expanded", "false");
+    const calibMenu = document.createElement("div");
+    calibMenu.className = "card-calib-menu hidden";
     const recalBtn = document.createElement("button");
-    recalBtn.className = "card-recal hidden";
     recalBtn.type = "button";
-    recalBtn.textContent = "📏 Recalibrate";
+    recalBtn.textContent = "Recalibrate…";
     recalBtn.title = "Redraw the line to set a new scale";
     const showBtn = document.createElement("button");
-    showBtn.className = "card-show hidden";
+    showBtn.className = "hidden";
     showBtn.type = "button";
     showBtn.textContent = "Show calibration";
     showBtn.title = "Show the calibration line on this plan";
+    calibMenu.append(recalBtn, showBtn);
+    const calibWrap = document.createElement("span");
+    calibWrap.className = "card-calib-wrap hidden"; // shown once the plan is calibrated
+    calibWrap.append(calibBtn, calibMenu);
     const saveBtn = document.createElement("button");
     saveBtn.className = "card-save hidden";
     saveBtn.type = "button";
-    saveBtn.innerHTML = '<span class="card-dot"></span>Save to library';
+    saveBtn.innerHTML = '<span class="card-dot"></span>Save';
     saveBtn.title = "This plan isn't saved — click to add it to your library";
     const tintBtn = document.createElement("button");
     tintBtn.className = "card-tint";
@@ -156,18 +183,12 @@
           `<button class="swatch" data-tint="${k}" type="button" title="${t.name}"` +
           ` aria-label="${t.name}" style="background:${t.hex}"></button>`
       ).join("");
-    const lockBtn = document.createElement("button");
-    lockBtn.className = "card-lock";
-    lockBtn.type = "button";
-    lockBtn.textContent = "🔓";
-    lockBtn.title = "Lock this plan in place";
-    lockBtn.setAttribute("aria-pressed", "false");
     const del = document.createElement("button");
     del.className = "card-del";
     del.type = "button";
     del.textContent = "✕";
     del.title = "Remove this plan from the comparison";
-    card.append(nameEl, totalEl, slider, recalBtn, showBtn, saveBtn, tintBtn, tintRow, lockBtn, del);
+    card.append(nameEl, totalEl, slider, calibWrap, saveBtn, tintBtn, tintRow, del);
     cardsEl.appendChild(card);
 
     // Auto-tint: give the new plan the least-used palette colour.
@@ -189,7 +210,9 @@
       totalEl,
       slider,
       saveBtn,
-      recalBtn,
+      calibWrap,
+      calibBtn,
+      calibMenu,
       showBtn,
       tintBtn,
       fxFilter,
@@ -206,18 +229,11 @@
       rotation: 0,
       unitsPerPx: null,
       opacity,
-      locked: !!opts.locked, // pinned: not pickable/draggable until unlocked
       // Restores pass an explicit tint (null = none); otherwise auto-tint.
       tint: "tint" in opts ? opts.tint : tintCounts.indexOf(Math.min(...tintCounts)),
       save: !!opts.save,
     };
     slider.value = opacity * 100;
-    if (p.locked) {
-      lockBtn.textContent = "🔒";
-      lockBtn.title = "Unlock this plan";
-      lockBtn.setAttribute("aria-pressed", "true");
-      lockBtn.classList.add("locked");
-    }
 
     slider.addEventListener("input", () => {
       p.opacity = slider.value / 100;
@@ -229,16 +245,26 @@
     del.addEventListener("click", () => removePlan(p));
     saveBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     saveBtn.addEventListener("click", () => saveToLibrary(p));
-    recalBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    calibBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    calibBtn.addEventListener("click", () => {
+      const wasHidden = calibMenu.classList.contains("hidden");
+      closeCalibMenus(); // only one card's dropdown open at a time
+      if (wasHidden) {
+        calibMenu.classList.remove("hidden");
+        calibBtn.setAttribute("aria-expanded", "true");
+      }
+    });
+    calibMenu.addEventListener("pointerdown", (e) => e.stopPropagation());
     recalBtn.addEventListener("click", () => {
+      closeCalibMenus();
       if (calibrating()) return;
       selected = null;
       selectedPlan = null;
       showCalibFor = null;
       beginMeasure(p); // redraw the line to set a new scale
     });
-    showBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
     showBtn.addEventListener("click", () => {
+      closeCalibMenus();
       showCalibFor = showCalibFor === p ? null : p;
       render();
     });
@@ -258,17 +284,6 @@
       updatePlanFilter(p);
       render();
     });
-    lockBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
-    lockBtn.addEventListener("click", () => {
-      p.locked = !p.locked;
-      lockBtn.textContent = p.locked ? "🔒" : "🔓";
-      lockBtn.title = p.locked ? "Unlock this plan" : "Lock this plan in place";
-      lockBtn.setAttribute("aria-pressed", String(p.locked));
-      lockBtn.classList.toggle("locked", p.locked);
-      if (p.locked && selectedPlan === p) selectedPlan = null;
-      render();
-    });
-
     planSvg.addEventListener("pointerdown", areaEditDown);
     planSvg.addEventListener("pointermove", areaEditMove);
     planSvg.addEventListener("pointerup", areaEditUp);
@@ -570,11 +585,10 @@
   // otherwise each size read forces its own reflow after the previous write.
   function updateCardContent(p) {
     p.card.classList.add("show");
-    p.card.classList.toggle("sel", selectedPlan === p); // small screens: full controls only when selected
     p.nameEl.textContent = p.name;
-    // Recalibrate once calibrated; show-calibration when a line is stored;
-    // save when savable + unsaved.
-    p.recalBtn.classList.toggle("hidden", p.unitsPerPx == null);
+    // Calibration dropdown once calibrated (its show-line item needs a stored
+    // line); save when savable + unsaved.
+    p.calibWrap.classList.toggle("hidden", p.unitsPerPx == null);
     p.showBtn.classList.toggle("hidden", !p.calibLine);
     p.showBtn.textContent = showCalibFor === p ? "Hide calibration" : "Show calibration";
     p.saveBtn.classList.toggle("hidden", !(canSave(p) && p.unitsPerPx != null));
@@ -678,11 +692,9 @@
     return loc.nx >= 0 && loc.nx <= p.img.naturalWidth && loc.ny >= 0 && loc.ny <= p.img.naturalHeight;
   }
 
-  // Topmost unlocked plan under the cursor, else null (locked plans are
-  // click-through: clicks reach whatever is beneath them).
+  // Topmost plan under the cursor, else null.
   function pickPlan(e) {
-    for (let k = plans.length - 1; k >= 0; k--)
-      if (planAt(plans[k], e) && !plans[k].locked) return plans[k];
+    for (let k = plans.length - 1; k >= 0; k--) if (planAt(plans[k], e)) return plans[k];
     return null;
   }
 
@@ -1113,7 +1125,6 @@
           rotation: p.rotation,
           opacity: p.opacity,
           tint: p.tint,
-          locked: p.locked,
           annotations: serializeLayout(p),
         })),
     };
@@ -1167,7 +1178,7 @@
     for (const s of entries) {
       const img = await PlanStore.sessionGet("img:" + s.sid).catch(() => null);
       if (!img || !img.blob) continue;
-      const p = addPlan({ name: s.name, save: s.save, opacity: s.opacity, tint: s.tint, locked: s.locked });
+      const p = addPlan({ name: s.name, save: s.save, opacity: s.opacity, tint: s.tint });
       p.sid = s.sid;
       p.sessionImgSaved = true; // its bytes are already in the store
       p.libId = s.libId || null;
@@ -2771,6 +2782,8 @@
       addMenu.classList.add("hidden");
     } else if (!backupMenu.classList.contains("hidden")) {
       backupMenu.classList.add("hidden");
+    } else if (plans.some((q) => !q.calibMenu.classList.contains("hidden"))) {
+      closeCalibMenus();
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
     } else if (!furnForm.classList.contains("hidden")) {
