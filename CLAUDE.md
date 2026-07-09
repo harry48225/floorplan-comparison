@@ -80,12 +80,18 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   (bookmarking strips newlines from the `javascript:` URL).
 - **Library:** `storage.js` / IndexedDB. New file-loaded plans offer a **Save to library**
   checkbox in the confirm step (default on); `#lib-save` is a manual fallback for the selected
-  plan. Stores image Blob + `unitsPerPx` + thumbnail. Add / rename / delete from the panel;
+  plan. Stores image Blob + `unitsPerPx` + thumbnail + the plan's **layout** (`annotations`:
+  its area boxes, tapes, and furniture, serialized without the `plan` ref by
+  `serializeLayout`). A saved plan's layout auto-syncs silently — every box add / edit /
+  delete calls `persistLayout(p)`, a 400 ms-debounced `PlanStore.setAnnotations` (no
+  blob/thumb re-encode); loading from the library restores it (`pendingAnnotations`,
+  hydrated in `onImageLoaded`). Removing a plan from the canvas clears its pending
+  layout timer so it never writes an empty layout. Add / rename / delete from the panel;
   persistence is requested automatically on first open. The footer's size readout sums the
   stored blob bytes (`navigator.storage.estimate()` reports the whole origin and is heavily
   padded in Firefox). Remote-URL images can't be saved (no
   Blob / tainted canvas). **Backup:** the Library footer has **Export** (whole library →
-  a self-contained JSON file; image bytes as base64 data URLs) and **Import** (restore from
+  a self-contained JSON file; image bytes as base64 data URLs, layouts included) and **Import** (restore from
   such a file — keeps original ids and overwrites matches, so re-importing is idempotent).
   See `PlanStore.exportAll` / `importAll`.
 - **Move a plan:** drag it, or **nudge the selected plan with the arrow keys** (1 screen px;
@@ -154,7 +160,9 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   below) so they never rotate with the piece or overlap. `furniture.js` holds the catalogue
   (metres) and per-item icon schematics authored in a unit box; `boxIconSVG` affine-maps the
   icon onto the placed rectangle (`vector-effect: non-scaling-stroke`) so it scales/rotates
-  with the piece. Placements are transient — not saved to the library.
+  with the piece. Like all boxes, placements ride along in a saved plan's library layout
+  (`icon` is a key into `Furniture.ICONS`; `boxIconSVG` tolerates retired keys, so old
+  layouts survive catalogue changes).
 
 ## Layering & hit-testing (important gotchas)
 

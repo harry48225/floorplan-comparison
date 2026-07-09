@@ -85,6 +85,14 @@ window.PlanStore = (() => {
       rec.updated = Date.now();
       return this.save(rec);
     },
+    // Write just a plan's layout annotations — no blob/thumb re-encode.
+    async setAnnotations(id, annotations) {
+      const rec = await this.get(id);
+      if (!rec) return;
+      rec.annotations = annotations;
+      rec.updated = Date.now();
+      return this.save(rec);
+    },
     requestPersist() {
       return navigator.storage && navigator.storage.persist
         ? navigator.storage.persist()
@@ -108,6 +116,7 @@ window.PlanStore = (() => {
           width: r.width,
           height: r.height,
           calibLine: r.calibLine || null,
+          annotations: r.annotations || null,
           created: r.created,
           updated: r.updated,
           blob: r.blob ? await blobToDataUrl(r.blob) : null,
@@ -139,6 +148,7 @@ window.PlanStore = (() => {
           height: p.height,
           thumb: p.thumb ? await dataUrlToBlob(p.thumb) : null,
           calibLine: p.calibLine || null,
+          annotations: p.annotations || null,
           created: p.created || Date.now(),
           updated: Date.now(),
         });

@@ -281,6 +281,7 @@
     selected = null;
     p.bakeToken++; // abandon any in-flight bake for this plan
     clearTimeout(p.bakeTimer);
+    clearTimeout(p.layoutTimer); // don't write the now-empty layout to the library
     p.layer.style.display = "none";
     p.card.style.display = "none";
     const finalize = () => {
@@ -331,6 +332,11 @@
     p.rotation = 0;
     centre(p);
     p.unitsPerPx = p.pendingUpp;
+    if (p.pendingAnnotations) {
+      // Restore the plan's saved layout, re-anchored to this plan object.
+      for (const a of p.pendingAnnotations) areas.push({ ...a, plan: p });
+      p.pendingAnnotations = null;
+    }
     p.img.hidden = false;
     updatePlanFilter(p);
     renderNow(); // paint the image in position this frame — no unplaced flash
@@ -1021,6 +1027,32 @@
     a.plan = target;
   }
 
+  // ---- Layout persistence: a library plan's boxes auto-save to its record. ----
+  // Serialize a plan's annotations (area boxes, tapes, furniture) minus the
+  // plan object reference — everything else is plain JSON in natural-px coords.
+  function serializeLayout(p) {
+    return areas
+      .filter((a) => a.plan === p)
+      .map((a) =>
+        a.kind === "tape"
+          ? { kind: "tape", ax: a.ax, ay: a.ay, bx: a.bx, by: a.by }
+          : a.kind === "furniture"
+          ? { kind: "furniture", label: a.label, icon: a.icon, cx: a.cx, cy: a.cy, w: a.w, h: a.h, angle: a.angle }
+          : { kind: "area", cx: a.cx, cy: a.cy, w: a.w, h: a.h, angle: a.angle }
+      );
+  }
+
+  // Debounced silent sync (like recalibration's updateLibrary) — only for plans
+  // already in the library. removePlan clears the timer so removing a plan from
+  // the canvas never writes its (now empty) layout over the saved one.
+  function persistLayout(p) {
+    if (!p || !p.libId || !PlanStore.available()) return;
+    clearTimeout(p.layoutTimer);
+    p.layoutTimer = setTimeout(() => {
+      PlanStore.setAnnotations(p.libId, serializeLayout(p)).catch(() => {});
+    }, 400);
+  }
+
   function setAreaTool(on) {
     areaTool = on;
     areaDraw = null;
@@ -1082,6 +1114,7 @@
         bx: end.nx,
         by: end.ny,
       });
+      persistLayout(distDraw.plan);
       setDistTool(false); // auto-exit, like the area tool
       selected = areas.length - 1;
     }
@@ -1141,6 +1174,7 @@
     }
     const loc = screenToPlan(p, sx, sy);
     areas.push(furnitureBox(item, p, loc.nx, loc.ny));
+    persistLayout(p);
     selected = areas.length - 1;
     selectedPlan = null;
     showHint(`Placed ${item.name}. Drag to move, use the knob to rotate.`, 2600);
@@ -1228,6 +1262,7 @@
     } else {
       areaCursor = screenToPlan(areaDraw.plan, sx, sy);
       areas.push(drawingBox());
+      persistLayout(areaDraw.plan);
       areaDraw = null;
       areaCursor = null;
       areaTool = false;
@@ -1261,11 +1296,13 @@
     const sy = e.clientY - r.top;
     if (t.classList.contains("del")) {
       const [box] = areas.splice(k, 1);
+      persistLayout(box.plan);
       selected = null;
       const what =
         box.kind === "furniture" ? box.label : box.kind === "tape" ? "tape measure" : "area";
       offerUndo(`Removed ${what}`, () => {
         areas.splice(Math.min(k, areas.length), 0, box);
+        persistLayout(box.plan);
         render();
       });
       render();
@@ -1357,7 +1394,11 @@
 
   function areaEditUp(e) {
     if (!areaResize && !areaMove && !areaRotate && !tapeEnd) return;
-    if (areaMove || tapeEnd) reanchorArea(areas[(areaMove || tapeEnd).index]);
+    const edited = areas[(areaResize || areaMove || areaRotate || tapeEnd).index];
+    const before = edited.plan; // re-anchoring may hand the box to another plan
+    if (areaMove || tapeEnd) reanchorArea(edited);
+    persistLayout(before);
+    if (edited.plan !== before) persistLayout(edited.plan);
     areaResize = null;
     areaMove = null;
     areaRotate = null;
@@ -2134,6 +2175,7 @@
       height: p.img.naturalHeight,
       thumb,
       calibLine: p.calibLine || null,
+      annotations: serializeLayout(p),
       created: p.created,
       updated: Date.now(),
     });
@@ -2166,6 +2208,7 @@
     const p = addPlan({ name: rec.name, save: false });
     p.libId = rec.id;
     p.calibLine = rec.calibLine || null;
+    p.pendingAnnotations = rec.annotations || null;
     p.created = rec.created;
     setImageSrc(p, URL.createObjectURL(rec.blob), rec.unitsPerPx, rec.blob);
     closeLibrary(); // close the library after adding
