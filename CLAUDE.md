@@ -129,7 +129,7 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
 - **Peek:** hold **Space** to hide the top plan and see what's underneath.
 - **Rotate a plan:** click it to select (dashed border + rotate knob above the top edge),
   drag the knob (snaps to 90° within ~7°). No resize — plans can't be resized.
-- **Plan card** (tucked into the plan's top-left corner): name, room total
+- **Plan card** (floating just above the plan's top edge, left-aligned): name, room total
   (`N rooms · X m²`), opacity slider, a **Calibration ▾** dropdown (`.card-calib-menu`:
   Recalibrate… + Show/Hide calibration; one open at a time, closed by pick / outside
   click / Esc), **● Save**, tint dot, and remove ✕. Visibility is **status-driven only**

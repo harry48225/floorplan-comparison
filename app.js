@@ -605,15 +605,49 @@
     p.totalEl.classList.toggle("hidden", !rooms.length);
   }
 
-  // Tuck a plan's card just inside its top-left (0,0) corner. bw/bh (the card's
-  // measured size) and r (the stage rect) are read together by render() up front.
+  // Float a plan's card just above its outline, aligned with its left side.
+  // The card tracks the plan's top *silhouette* across its own horizontal
+  // span — not the bounding box, whose top-left is empty space once the plan
+  // is rotated and would strand the card far from the image. Clamping back
+  // on-screen means it overlaps the plan only when there's no room above.
+  // If the card would sit on the selected plan's rotate knob (a 28·HK stem +
+  // 8·HK circle off the top edge's midpoint), it lifts just clear of it.
+  // bw/bh (the card's measured size) and r (the stage rect) are read together
+  // by render() up front.
   function placeCard(p, bw, bh, r) {
-    const corner = planToScreen(p, 0, 0);
-    const ctr = planCentreScreen(p);
-    const pad = 4;
-    const left = ctr.x >= corner.x ? corner.x + pad : corner.x - bw - pad;
-    const top = ctr.y >= corner.y ? corner.y + pad : corner.y - bh - pad;
-    p.card.style.left = clamp(left, 4, r.width - bw - 4) + "px";
+    const w = p.img.naturalWidth;
+    const h = p.img.naturalHeight;
+    const cs = [planToScreen(p, 0, 0), planToScreen(p, w, 0), planToScreen(p, 0, h), planToScreen(p, w, h)];
+    const left = clamp(Math.min(cs[0].x, cs[1].x, cs[2].x, cs[3].x), 4, r.width - bw - 4);
+    // The outline's upper hull runs leftmost corner → topmost corner. The
+    // highest outline point under the card is the apex if the card reaches
+    // it, else the hull edge where the card ends. (Axis-aligned, apex and
+    // leftmost coincide in a flat top edge — this degrades to the bbox top.)
+    const apex = cs.reduce((a, c) => (c.y < a.y ? c : a));
+    const lc = cs.reduce((a, c) => (c.x < a.x || (c.x === a.x && c.y < a.y) ? c : a));
+    const bandR = left + bw;
+    const topY =
+      apex === lc || apex.x <= bandR
+        ? apex.y
+        : lc.y + ((apex.y - lc.y) * (bandR - lc.x)) / (apex.x - lc.x);
+    let top = topY - bh - 8;
+    if (p === selectedPlan) {
+      const topMid = planToScreen(p, w / 2, 0);
+      const ctr = planToScreen(p, w / 2, h / 2);
+      const dx = topMid.x - ctr.x;
+      const dy = topMid.y - ctr.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const kx = topMid.x + (dx / len) * 28 * HK;
+      const ky = topMid.y + (dy / len) * 28 * HK;
+      const kr = 8 * HK;
+      const zx1 = Math.min(topMid.x, kx - kr);
+      const zx2 = Math.max(topMid.x, kx + kr);
+      const zy1 = Math.min(topMid.y, ky - kr);
+      const zy2 = Math.max(topMid.y, ky + kr);
+      const t = clamp(top, 4, r.height - bh - 4); // where the card would actually sit
+      if (left < zx2 && left + bw > zx1 && t < zy2 && t + bh > zy1) top = zy1 - bh - 6;
+    }
+    p.card.style.left = left + "px";
     p.card.style.top = clamp(top, 4, r.height - bh - 4) + "px";
   }
 
