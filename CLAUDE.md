@@ -114,10 +114,10 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   the restore so a half-built stack can't clobber the stored one. Refreshing
   mid-calibration restores the plan uncalibrated and drops straight back into measuring.
   The **autosave chip** (`#save-status`, bottom-left) flips "Saving…" → "✓ Saved" as the
-  write lands, followed by a visible "· you can refresh or leave at any time" note
-  (`.save-note`, dropped in the `⚠ Not saved` error state, when it isn't true); it hides
-  on an empty canvas, and `writeSessionMeta` skips the IDB write when the meta JSON is
-  unchanged.
+  write lands; the "· you can refresh or leave at any time" note (`.save-note`) shows
+  **only in the saved state** (`.saved` class) — never while saving or after a failed
+  write, when it wouldn't be true. It hides on an empty canvas, and `writeSessionMeta`
+  skips the IDB write when the meta JSON is unchanged.
 - **Move a plan:** drag it, or **nudge the selected plan with the arrow keys** (1 screen px;
   Shift = 10). **Remove a plan from the canvas:** the ✕ on its card (does not touch the
   library; undoable via the toast). **Pan the view:** drag empty canvas. **Zoom:** wheel or

@@ -1126,7 +1126,7 @@
     const json = JSON.stringify(meta);
     const saved = () => {
       saveState.textContent = "✓ Saved";
-      saveStatus.classList.remove("error"); // reassurance note is true again
+      saveStatus.classList.add("saved"); // reassurance note is true again
     };
     if (json === sessionLastMeta) {
       saved(); // nothing changed since the last write
@@ -1139,7 +1139,7 @@
       },
       () => {
         saveState.textContent = "⚠ Not saved";
-        saveStatus.classList.add("error"); // hide "you can refresh" — it's not true
+        saveStatus.classList.remove("saved"); // hide "you can refresh" — not true
       }
     );
   }
@@ -1150,6 +1150,7 @@
   function scheduleSessionSave() {
     if (sessionRestoring || !PlanStore.available()) return;
     saveState.textContent = "Saving…";
+    saveStatus.classList.remove("saved"); // note comes back once the write lands
     if (sessionTimer !== null) return; // a write is already on its way
     sessionTimer = setTimeout(writeSessionMeta, 1000);
   }

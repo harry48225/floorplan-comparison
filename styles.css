@@ -310,9 +310,9 @@ input[type="range"] {
 }
 
 /* Autosave status chip (bottom-left): flips "Saving…" → "✓ Saved" as the
-   debounced session write lands, with a note that it's safe to refresh —
-   dropped in the (rare) error state, when it wouldn't be true. */
-.save-status.error .save-note { display: none; }
+   throttled session write lands. The "safe to refresh" note only shows in
+   the saved state — while saving (or failed) it wouldn't be true. */
+.save-status:not(.saved) .save-note { display: none; }
 .save-status {
   position: absolute;
   left: 16px;
