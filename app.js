@@ -1318,34 +1318,193 @@
     render();
   }
 
+  // Size the swatch to the piece's real proportions (longest side 40px),
+  // stretching the unit-box icon into it (preserveAspectRatio="none") just
+  // like the canvas does, so the preview shows the true footprint shape.
+  function furnTileHTML(it) {
+    const m = Math.max(it.w, it.h);
+    const iw = ((it.w / m) * 40).toFixed(1);
+    const ih = ((it.h / m) * 40).toFixed(1);
+    return (
+      `<button class="furn-item" type="button" data-id="${it.id}">` +
+      `<span class="furn-ic-box">` +
+      `<svg class="furn-ic" width="${iw}" height="${ih}" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">${Furniture.ICONS[it.icon] || ""}</svg>` +
+      `</span>` +
+      `<span class="furn-item-name">${escapeHtml(it.name)}</span>` +
+      `<span class="furn-item-dim">${it.w.toFixed(2)} × ${it.h.toFixed(2)} m</span>` +
+      `</button>`
+    );
+  }
+
   function buildFurniturePalette() {
-    furnGrid.innerHTML = Furniture.CATALOG.map(
+    // "My furniture" leads: the user's custom items (edit ✎ / delete ✕), then
+    // a New-item tile. Catalogue items get a ⧉ to use them as a template.
+    const mine =
+      `<div class="furn-cat">My furniture</div>` +
+      customFurniture
+        .map(
+          (it) =>
+            `<div class="furn-cell">` +
+            furnTileHTML(it) +
+            `<span class="furn-acts">` +
+            `<button class="furn-act" type="button" data-edit="${it.id}" title="Edit" aria-label="Edit ${escapeHtml(it.name)}">✎</button>` +
+            `<button class="furn-act" type="button" data-del="${it.id}" title="Delete" aria-label="Delete ${escapeHtml(it.name)}">✕</button>` +
+            `</span></div>`
+        )
+        .join("") +
+      `<button class="furn-item furn-new" type="button" data-new="1">` +
+      `<span class="furn-new-plus" aria-hidden="true">＋</span>` +
+      `<span class="furn-item-name">New item</span>` +
+      `<span class="furn-item-dim">any size you need</span>` +
+      `</button>`;
+    const catalogue = Furniture.CATALOG.map(
       (group) =>
         `<div class="furn-cat">${escapeHtml(group.category)}</div>` +
         group.items
-          .map((it) => {
-            // Size the swatch to the piece's real proportions (longest side 40px),
-            // stretching the unit-box icon into it (preserveAspectRatio="none") just
-            // like the canvas does, so the preview shows the true footprint shape.
-            const m = Math.max(it.w, it.h);
-            const iw = ((it.w / m) * 40).toFixed(1);
-            const ih = ((it.h / m) * 40).toFixed(1);
-            return (
-              `<button class="furn-item" type="button" data-id="${it.id}">` +
-              `<span class="furn-ic-box">` +
-              `<svg class="furn-ic" width="${iw}" height="${ih}" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">${Furniture.ICONS[it.icon] || ""}</svg>` +
-              `</span>` +
-              `<span class="furn-item-name">${escapeHtml(it.name)}</span>` +
-              `<span class="furn-item-dim">${it.w.toFixed(2)} × ${it.h.toFixed(2)} m</span>` +
-              `</button>`
-            );
-          })
+          .map(
+            (it) =>
+              `<div class="furn-cell">` +
+              furnTileHTML(it) +
+              `<span class="furn-acts">` +
+              `<button class="furn-act" type="button" data-dup="${it.id}" title="New custom item based on this" aria-label="New custom item based on ${escapeHtml(it.name)}">⧉</button>` +
+              `</span></div>`
+          )
           .join("")
     ).join("");
+    furnGrid.innerHTML = mine + catalogue;
+    customFurniture.forEach((it) => (furnById[it.id] = it));
   }
 
   const furnById = {};
   Furniture.CATALOG.forEach((g) => g.items.forEach((it) => (furnById[it.id] = it)));
+
+  // ---- Custom furniture: user-created catalogue items (IndexedDB-backed). ----
+  // An item is { id, name, w, h, icon } — icon is a key into Furniture.ICONS, so
+  // custom pieces reuse the standard schematics (stretched to fill the footprint,
+  // same as the catalogue). Placed pieces carry their own label/size/icon copy,
+  // so editing or deleting a custom item never touches what's already placed.
+  let customFurniture = [];
+  const furnForm = document.getElementById("furn-form");
+  const furnFormTitle = document.getElementById("furn-form-title");
+  const furnFormName = document.getElementById("furn-form-name");
+  const furnFormW = document.getElementById("furn-form-w");
+  const furnFormH = document.getElementById("furn-form-h");
+  const furnFormSave = document.getElementById("furn-form-save");
+  const furnShapeGrid = document.getElementById("furn-shape-grid");
+  let furnEditing = null; // id of the custom item being edited, or null for new
+
+  function buildShapePicker() {
+    furnShapeGrid.innerHTML = Object.keys(Furniture.ICONS)
+      .map((key) => {
+        const label = key.replace(/([A-Z])/g, " $1").toLowerCase();
+        return (
+          `<label class="furn-shape" title="${escapeHtml(label)}">` +
+          `<input type="radio" name="furn-shape" value="${key}" aria-label="${escapeHtml(label)}" />` +
+          `<span class="furn-shape-box">` +
+          `<svg class="furn-ic" width="30" height="30" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">${Furniture.ICONS[key]}</svg>` +
+          `</span></label>`
+        );
+      })
+      .join("");
+  }
+
+  // Stretch every shape swatch to the entered proportions (longest side 30px),
+  // so the picker previews exactly how the icon will fill the item's footprint.
+  function updateShapePreviews() {
+    const w = parseFloat(furnFormW.value);
+    const h = parseFloat(furnFormH.value);
+    const ok = w > 0 && h > 0;
+    const m = ok ? Math.max(w, h) : 1;
+    const iw = (ok ? (w / m) * 30 : 30).toFixed(1);
+    const ih = (ok ? (h / m) * 30 : 30).toFixed(1);
+    furnShapeGrid.querySelectorAll("svg").forEach((s) => {
+      s.setAttribute("width", iw);
+      s.setAttribute("height", ih);
+    });
+  }
+  furnFormW.addEventListener("input", updateShapePreviews);
+  furnFormH.addEventListener("input", updateShapePreviews);
+
+  // Open the form blank, prefilled from a template item (⧉ / New from a
+  // catalogue piece), or editing an existing custom item (editId set).
+  function openFurnForm(tpl, editId) {
+    if (!furnShapeGrid.childElementCount) buildShapePicker();
+    furnEditing = editId || null;
+    furnFormTitle.textContent = furnEditing ? "Edit furniture" : "New furniture";
+    furnFormSave.textContent = furnEditing ? "Save" : "Add";
+    furnFormName.value = tpl ? tpl.name : "";
+    furnFormW.value = tpl ? tpl.w : "";
+    furnFormH.value = tpl ? tpl.h : "";
+    const icon = tpl && Furniture.ICONS[tpl.icon] ? tpl.icon : "table";
+    const radio = furnShapeGrid.querySelector(`input[value="${icon}"]`);
+    if (radio) radio.checked = true;
+    updateShapePreviews();
+    furnForm.classList.remove("hidden");
+    furnFormName.focus();
+  }
+  function closeFurnForm() {
+    furnForm.classList.add("hidden");
+    furnEditing = null;
+  }
+  document.getElementById("furn-form-cancel").addEventListener("click", closeFurnForm);
+
+  furnForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = furnFormName.value.trim();
+    const w = parseFloat(furnFormW.value);
+    const h = parseFloat(furnFormH.value);
+    if (!name || !(w > 0) || !(h > 0)) return;
+    const checked = furnShapeGrid.querySelector("input:checked");
+    const rec = { id: furnEditing || PlanStore.uuid(), name, w, h, icon: checked ? checked.value : "table", updated: Date.now() };
+    const i = customFurniture.findIndex((f) => f.id === rec.id);
+    if (i >= 0) {
+      rec.created = customFurniture[i].created;
+      customFurniture[i] = rec;
+    } else {
+      rec.created = Date.now();
+      customFurniture.push(rec);
+    }
+    // Still usable this session even if the write fails (e.g. no IndexedDB).
+    PlanStore.furniturePut(rec).catch(() => {});
+    closeFurnForm();
+    buildFurniturePalette();
+  });
+
+  // Custom-item actions (new / template / edit / delete) — delegated alongside
+  // the arm handler; these buttons aren't .furn-item, so they never arm placement.
+  furnGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    if (btn.dataset.new) {
+      openFurnForm(null, null);
+    } else if (btn.dataset.dup) {
+      openFurnForm(furnById[btn.dataset.dup], null);
+    } else if (btn.dataset.edit) {
+      const it = customFurniture.find((f) => f.id === btn.dataset.edit);
+      if (it) openFurnForm(it, it.id);
+    } else if (btn.dataset.del) {
+      const it = customFurniture.find((f) => f.id === btn.dataset.del);
+      if (it && confirm(`Delete “${it.name}” from your furniture? Pieces already placed stay on the plans.`)) {
+        customFurniture = customFurniture.filter((f) => f !== it);
+        delete furnById[it.id];
+        PlanStore.furnitureDelete(it.id).catch(() => {});
+        if (furnEditing === it.id) closeFurnForm();
+        buildFurniturePalette();
+      }
+    }
+  });
+
+  // Load (or re-load, after an import) the custom items from IndexedDB.
+  function reloadCustomFurniture() {
+    return PlanStore.furnitureAll()
+      .then((recs) => {
+        customFurniture = recs;
+        // Rebuild if the panel was opened before the list arrived.
+        if (furnGrid.childElementCount) buildFurniturePalette();
+      })
+      .catch(() => {});
+  }
+  if (PlanStore.available()) reloadCustomFurniture();
 
   // Arm a piece from the palette. pointerdown enables press-and-drag straight onto
   // the canvas (the armed ghost follows the cursor, drops on release); click keeps
@@ -1368,6 +1527,7 @@
   function closeFurniture() {
     furniturePanel.classList.add("hidden");
     furnitureBtn.classList.remove("active");
+    closeFurnForm();
   }
   furnitureBtn.addEventListener("click", () => {
     if (furniturePanel.classList.contains("hidden")) openFurniture();
@@ -2569,6 +2729,7 @@
     try {
       const { added, skipped } = await PlanStore.importAll(bundle);
       refreshLibrary();
+      reloadCustomFurniture(); // imported custom furniture shows without a refresh
       let msg = `Imported ${added} plan${added === 1 ? "" : "s"}.`;
       if (skipped) msg += ` ${skipped} skipped.`;
       showHint(msg, 2800);
@@ -2592,6 +2753,8 @@
       addMenu.classList.add("hidden");
     } else if (!libraryPanel.classList.contains("hidden")) {
       closeLibrary();
+    } else if (!furnForm.classList.contains("hidden")) {
+      closeFurnForm(); // the form first, the panel on the next Esc
     } else if (!furniturePanel.classList.contains("hidden")) {
       closeFurniture();
     } else if (pasteReady) {

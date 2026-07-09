@@ -3,13 +3,16 @@
 // width, height, thumb, created, updated }. See CLAUDE.md / PHASE2 spec.
 // A second "session" store holds the open workspace (see the session*
 // methods): a "meta" record plus one "img:<sid>" record per open plan.
+// A third "furniture" store holds the user's custom furniture items (see the
+// furniture* methods): { id, name, w, h, icon, created, updated }.
 window.PlanStore = (() => {
   "use strict";
 
   const DB = "floorplan-overlay";
   const STORE = "plans";
   const SESSION = "session"; // the open workspace, restored on next visit
-  const VERSION = 2;
+  const FURNITURE = "furniture"; // user-created furniture items
+  const VERSION = 3;
   let dbPromise = null;
 
   function available() {
@@ -32,6 +35,9 @@ window.PlanStore = (() => {
         }
         if (!db.objectStoreNames.contains(SESSION)) {
           db.createObjectStore(SESSION, { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains(FURNITURE)) {
+          db.createObjectStore(FURNITURE, { keyPath: "id" });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -98,6 +104,17 @@ window.PlanStore = (() => {
     sessionAll() {
       return op(SESSION, "readonly", (s) => s.getAll());
     },
+
+    // --- Custom furniture: user-created catalogue items ---
+    furniturePut(rec) {
+      return op(FURNITURE, "readwrite", (s) => s.put(rec)).then(() => rec.id);
+    },
+    furnitureDelete(id) {
+      return op(FURNITURE, "readwrite", (s) => s.delete(id));
+    },
+    furnitureAll() {
+      return op(FURNITURE, "readonly", (s) => s.getAll()).then((a) => a.sort((x, y) => x.created - y.created));
+    },
     async rename(id, name) {
       const rec = await this.get(id);
       if (!rec) return;
@@ -143,7 +160,8 @@ window.PlanStore = (() => {
           thumb: r.thumb ? await blobToDataUrl(r.thumb) : null,
         }))
       );
-      return { app: DB, version: VERSION, exported: Date.now(), plans };
+      const furniture = await this.furnitureAll();
+      return { app: DB, version: VERSION, exported: Date.now(), plans, furniture };
     },
     // merge=true (restore): keep original ids and overwrite matches, so
     // re-importing the same backup is idempotent. merge=false: add as new.
@@ -173,6 +191,22 @@ window.PlanStore = (() => {
           updated: Date.now(),
         });
         added++;
+      }
+      // Older backups have no furniture list; merge keeps original ids so
+      // re-importing stays idempotent.
+      if (Array.isArray(bundle.furniture)) {
+        for (const f of bundle.furniture) {
+          if (!f || !f.name || !(f.w > 0) || !(f.h > 0)) continue;
+          await this.furniturePut({
+            id: merge && f.id ? f.id : uuid(),
+            name: f.name,
+            w: f.w,
+            h: f.h,
+            icon: f.icon || "table",
+            created: f.created || Date.now(),
+            updated: Date.now(),
+          });
+        }
       }
       return { added, skipped };
     },

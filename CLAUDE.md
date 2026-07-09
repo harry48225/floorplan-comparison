@@ -19,9 +19,10 @@ library entry points are hidden. Intended to be hosted publicly.
   the Rightmove-grab popover, and the Library/Furniture panels.
 - `styles.css` — light theme; all layout and the SVG overlay styling.
 - `app.js` — all app logic, wrapped in one IIFE. No modules, no framework.
-- `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper with two object stores —
-  `plans` (the saved-plan library) and `session` (the open workspace, see the
-  `session*` methods) — loaded before `app.js`. No personal data is bundled in the repo.
+- `storage.js` — `window.PlanStore`: a tiny IndexedDB wrapper with three object stores —
+  `plans` (the saved-plan library), `session` (the open workspace, see the
+  `session*` methods), and `furniture` (the user's custom furniture items, see the
+  `furniture*` methods) — loaded before `app.js`. No personal data is bundled in the repo.
 - `furniture.js` — `window.Furniture = { CATALOG, ICONS }`: the standard furniture
   catalogue (real-world sizes in metres) and top-down icon schematics (loaded before
   `app.js`). Data only, no logic.
@@ -191,6 +192,16 @@ pre-calibrated (stored `unitsPerPx`) and skip measuring.
   with the piece. Like all boxes, placements ride along in a saved plan's library layout
   (`icon` is a key into `Furniture.ICONS`; `boxIconSVG` tolerates retired keys, so old
   layouts survive catalogue changes).
+- **Custom furniture:** a **My furniture** section leads the palette — the user's own items
+  (`customFurniture`, persisted in the `furniture` IDB store and included in Export/Import),
+  each tile with edit ✎ / delete ✕ corner actions, plus a **＋ New item** tile. Every
+  catalogue tile gets a ⧉ action that opens the same form prefilled (use-as-template). The
+  form (`#furn-form`, between the panel head and grid) takes name + width/depth in metres
+  and a **shape** picked from the existing `ICONS` (radio swatches, live-stretched to the
+  entered proportions so the preview matches the placed footprint). A custom item is
+  `{ id, name, w, h, icon }` — the icon is a standard `ICONS` key, and a *placed* piece
+  carries its own `label/icon/w/h` copy, so editing or deleting a custom item never
+  affects pieces already on a plan, saved layouts, or the session.
 
 ## Layering & hit-testing (important gotchas)
 

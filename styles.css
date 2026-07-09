@@ -900,6 +900,113 @@ kbd {
 .furn-item-name { font-size: 12px; font-weight: 600; line-height: 1.2; }
 .furn-item-dim { font-size: 11px; color: var(--muted); }
 
+/* A palette cell: the tile plus its corner actions (edit/delete on custom
+   items, "use as template" on catalogue ones). Actions show on hover/focus —
+   always on touch, where there's no hover. */
+.furn-cell { position: relative; display: flex; }
+.furn-cell .furn-item { flex: 1; min-width: 0; }
+.furn-acts {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity .12s;
+}
+.furn-cell:hover .furn-acts,
+.furn-cell:focus-within .furn-acts { opacity: 1; }
+@media (hover: none) {
+  .furn-acts { opacity: 1; }
+}
+.furn-act {
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  line-height: 20px;
+  font-size: 12px;
+  border-radius: 6px;
+  color: var(--muted);
+}
+.furn-act:hover { color: var(--text); }
+
+.furn-new { border-style: dashed; color: var(--muted); justify-content: center; }
+.furn-new:hover { border-color: var(--accent); color: var(--accent); }
+.furn-new-plus { font-size: 20px; line-height: 1; }
+
+/* New / edit custom-item form, between the panel head and the grid. */
+.furn-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.furn-form strong { font-size: 13px; }
+.furn-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.furn-form-field input {
+  font: inherit;
+  color: var(--text);
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  width: 100%;
+  min-width: 0;
+}
+.furn-form-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.furn-form-dims { display: flex; gap: 8px; }
+.furn-form-dims .furn-form-field { flex: 1; }
+.furn-form-shapes { border: none; margin: 0; padding: 0; }
+.furn-form-shapes legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.furn-shape-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 128px;
+  overflow-y: auto;
+}
+.furn-shape { position: relative; cursor: pointer; }
+.furn-shape input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.furn-shape-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.furn-shape input:checked + .furn-shape-box {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.furn-shape input:focus-visible + .furn-shape-box { outline: 2px solid var(--accent); outline-offset: 1px; }
+.furn-form-actions { display: flex; gap: 8px; }
+.furn-form-actions #furn-form-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.furn-form-actions #furn-form-save:hover { background: #235ad6; }
+
 /* Per-plan tint picker on the card: a dot showing the tint + a swatch row. */
 .card-tint {
   pointer-events: auto;
