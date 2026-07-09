@@ -1197,6 +1197,11 @@
   // even during continuous interaction (the write reads current state anyway).
   function scheduleSessionSave() {
     if (sessionRestoring || !PlanStore.available()) return;
+    // Renders also fire for transient things (selecting a plan, say) — don't
+    // flash "Saving…" unless the persisted state really changed. The compare
+    // only runs while idle (no write pending): mid-interaction the timer is
+    // already armed, and each interaction serializes once, not per frame.
+    if (sessionTimer === null && JSON.stringify(sessionMeta()) === sessionLastMeta) return;
     saveState.textContent = "Saving…";
     saveStatus.classList.remove("saved"); // note comes back once the write lands
     if (sessionTimer !== null) return; // a write is already on its way
