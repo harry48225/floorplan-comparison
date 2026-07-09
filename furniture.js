@@ -2,7 +2,8 @@
 // (width W across × depth/length D), measured top-down. Loaded before app.js;
 // exposes window.Furniture = { CATALOG, ICONS }.
 //
-// Beds use UK National Bed Federation standard mattress sizes. Storage and
+// Beds are UK National Bed Federation standard mattress sizes plus a standard
+// bedframe allowance (~15 cm wider, ~20 cm longer than the mattress). Storage and
 // kitchen/utility appliances use the standard 600 mm cabinet depth. Seating,
 // tables, desks, the TV stand and bike are typical real-world sizes — actual
 // products vary, so these are sensible middle-of-the-road figures.
@@ -162,11 +163,11 @@ window.Furniture = (() => {
     {
       category: "Beds",
       items: [
-        { id: "bed-single", name: "Single bed", w: 0.9, h: 1.9, icon: "bed" },
-        { id: "bed-small-double", name: "Small double bed", w: 1.2, h: 1.9, icon: "bed" },
-        { id: "bed-double", name: "Double bed", w: 1.35, h: 1.9, icon: "bed" },
-        { id: "bed-king", name: "King bed", w: 1.5, h: 2.0, icon: "bed" },
-        { id: "bed-super-king", name: "Super king bed", w: 1.8, h: 2.0, icon: "bed" },
+        { id: "bed-single", name: "Single bed", w: 1.05, h: 2.1, icon: "bed" },
+        { id: "bed-small-double", name: "Small double bed", w: 1.35, h: 2.1, icon: "bed" },
+        { id: "bed-double", name: "Double bed", w: 1.5, h: 2.1, icon: "bed" },
+        { id: "bed-king", name: "King bed", w: 1.65, h: 2.2, icon: "bed" },
+        { id: "bed-super-king", name: "Super king bed", w: 1.95, h: 2.2, icon: "bed" },
         { id: "cot", name: "Cot", w: 0.65, h: 1.25, icon: "cot" },
       ],
     },
