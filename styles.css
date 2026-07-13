@@ -8,7 +8,7 @@
   --accent-soft: #e7eefe;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .1);
   /* Rotate-knob cursor: a circular arrow (white outline for contrast), grab fallback. */
-  --cursor-rotate: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4a6 6 0 1 1-6 6"/><path d="M1.8 12.4L4 10l2.2 2.4"/></g><g fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4a6 6 0 1 1-6 6"/><path d="M1.8 12.4L4 10l2.2 2.4"/></g></svg>') 10 10, grab;
+  --cursor-rotate: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><g stroke="white"><path d="M14.2 14.2A6 6 0 1 1 14.2 5.8" fill="none" stroke-width="4" stroke-linecap="round"/><polygon points="16.3 7.9 14.7 2.7 11 6.3" fill="white" stroke-width="3" stroke-linejoin="round"/></g><path d="M14.2 14.2A6 6 0 1 1 14.2 5.8" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"/><polygon points="16.3 7.9 14.7 2.7 11 6.3" fill="black"/></svg>') 10 10, grab;
 }
 
 * { box-sizing: border-box; }
