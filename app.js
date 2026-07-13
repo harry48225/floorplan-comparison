@@ -1901,11 +1901,13 @@
     calibSvg.innerHTML = "";
     calibSvg.classList.remove("hidden", "readonly");
     stage.classList.add("measuring");
-    // Show only the plan being measured.
+    // Show only the plan being measured — its card included: the other plans'
+    // cards would float over the measured plan, obscuring it.
     plans.forEach((q) => {
       if (!q.loaded) return;
       const vis = q === p ? "visible" : "hidden";
       q.img.style.visibility = vis;
+      q.card.style.visibility = vis;
       if (q.baked) q.baked.style.visibility = vis;
     });
     // The loupe magnifies a clone of the measured plan's image, plus a mirror
@@ -1933,6 +1935,7 @@
     loupeContent.innerHTML = "";
     plans.forEach((q) => {
       q.img.style.visibility = "visible";
+      q.card.style.visibility = "visible";
       if (q.baked) q.baked.style.visibility = "visible";
     });
     render();
