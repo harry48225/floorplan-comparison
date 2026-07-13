@@ -33,17 +33,25 @@
   const areas = [];
   let furnPlacing = null; // { item, sx, sy } while placing a furniture piece
 
-  // Local→plan offsets for the 8 resize handles (and their resize cursors).
+  // Local→plan offsets for the 8 resize handles.
   const RESIZE_HANDLES = [
-    { sx: -1, sy: -1, cursor: "nwse-resize" },
-    { sx: 1, sy: -1, cursor: "nesw-resize" },
-    { sx: 1, sy: 1, cursor: "nwse-resize" },
-    { sx: -1, sy: 1, cursor: "nesw-resize" },
-    { sx: 0, sy: -1, cursor: "ns-resize" },
-    { sx: 1, sy: 0, cursor: "ew-resize" },
-    { sx: 0, sy: 1, cursor: "ns-resize" },
-    { sx: -1, sy: 0, cursor: "ew-resize" },
+    { sx: -1, sy: -1 },
+    { sx: 1, sy: -1 },
+    { sx: 1, sy: 1 },
+    { sx: -1, sy: 1 },
+    { sx: 0, sy: -1 },
+    { sx: 1, sy: 0 },
+    { sx: 0, sy: 1 },
+    { sx: -1, sy: 0 },
   ];
+  // The resize cursor for handle (sx,sy) of box a: its on-screen direction (the
+  // handle's own 45°-step angle plus the box and plan rotations) picks one of
+  // the four arrows, so a rotated box's corners still point the right way.
+  const RESIZE_CURSORS = ["ew-resize", "nwse-resize", "ns-resize", "nesw-resize"];
+  function resizeCursor(a, sx, sy) {
+    const oct = Math.round((Math.atan2(sy, sx) * 4) / Math.PI + (a.angle + a.plan.rotation) / 45);
+    return RESIZE_CURSORS[((oct % 4) + 4) % 4];
+  }
 
   let selectedPlan = null; // plan object showing its rotate handle, or null
   let planRotating = false; // dragging a plan's rotate knob
@@ -451,6 +459,7 @@
   function renderNow() {
     stage.classList.toggle("confirming", !!calibPending);
     stage.classList.toggle("placing", !!furnPlacing);
+    stage.classList.toggle("drawing", areaTool || distTool);
 
     // Holding Space hides the top plan to peek at what's underneath. (While
     // measuring, beginMeasure owns visibility — leave it alone.)
@@ -940,7 +949,7 @@
       for (const hd of RESIZE_HANDLES) {
         const pt = boxPoint(a, hd.sx, hd.sy);
         const c = planToScreen(a.plan, pt.nx, pt.ny);
-        s += `<rect class="handle" data-i="${k}" data-sx="${hd.sx}" data-sy="${hd.sy}" x="${c.x - hs}" y="${c.y - hs}" width="${2 * hs}" height="${2 * hs}" style="cursor:${hd.cursor}"></rect>`;
+        s += `<rect class="handle" data-i="${k}" data-sx="${hd.sx}" data-sy="${hd.sy}" x="${c.x - hs}" y="${c.y - hs}" width="${2 * hs}" height="${2 * hs}" style="cursor:${resizeCursor(a, hd.sx, hd.sy)}"></rect>`;
       }
     }
     const ctr = planToScreen(a.plan, a.cx, a.cy);
@@ -1669,6 +1678,13 @@
     } else {
       areaMove = { index: k, lastSx: sx, lastSy: sy };
     }
+    // Hold the matching cursor for the whole drag — pointer capture would
+    // otherwise revert it to the default arrow (cursor inherits from the stage).
+    stage.style.cursor = areaRotate
+      ? "var(--cursor-rotate)"
+      : areaResize
+      ? resizeCursor(areas[k], areaResize.sx, areaResize.sy)
+      : "move";
     e.currentTarget.setPointerCapture(e.pointerId);
     render();
   }
@@ -1753,6 +1769,7 @@
     areaMove = null;
     areaRotate = null;
     tapeEnd = null;
+    stage.style.cursor = "";
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch (_) {}
@@ -1798,6 +1815,7 @@
     e.stopPropagation();
     planRotating = true;
     markInteracting();
+    stage.style.cursor = "var(--cursor-rotate)"; // hold it through the drag
     planUiSvg.setPointerCapture(e.pointerId);
   });
   planUiSvg.addEventListener("pointermove", (e) => {
@@ -1813,6 +1831,7 @@
   const endPlanRotate = (e) => {
     if (!planRotating) return;
     planRotating = false;
+    stage.style.cursor = "";
     try {
       planUiSvg.releasePointerCapture(e.pointerId);
     } catch (_) {}

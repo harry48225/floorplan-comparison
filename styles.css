@@ -7,6 +7,8 @@
   --accent: #2f6df6;
   --accent-soft: #e7eefe;
   --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .1);
+  /* Rotate-knob cursor: a circular arrow (white outline for contrast), grab fallback. */
+  --cursor-rotate: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><g fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4a6 6 0 1 1-6 6"/><path d="M1.8 12.4L4 10l2.2 2.4"/></g><g fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4a6 6 0 1 1-6 6"/><path d="M1.8 12.4L4 10l2.2 2.4"/></g></svg>') 10 10, grab;
 }
 
 * { box-sizing: border-box; }
@@ -633,10 +635,9 @@ input[type="range"] {
   fill: #fff;
   stroke: var(--accent);
   stroke-width: 1.5;
-  cursor: grab;
+  cursor: var(--cursor-rotate);
   pointer-events: all;
 }
-.rot:active { cursor: grabbing; }
 .rot-stem {
   stroke: var(--accent);
   stroke-width: 1.5;
@@ -660,6 +661,9 @@ input[type="range"] {
 
 /* While placing a furniture piece, the canvas is a drop target. */
 .stage.placing { cursor: crosshair; }
+/* While a draw tool (area / tape) is armed, the whole canvas is a click target.
+   Set on the stage (cursor inherits) so it shows whichever element is hovered. */
+.stage.drawing { cursor: crosshair; }
 
 /* Calibration overlay */
 .calib {
