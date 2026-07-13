@@ -61,7 +61,8 @@
 
   // Calibration: idle -> measuring a plan -> confirm pending -> applied.
   let calibPlan = null; // plan object being measured, or null
-  let calibPts = [];
+  let calibPts = []; // placed calibration points, in the measured plan's coords
+  let calibCursor = null; // screen pt of the last hover, for the live preview
   let calibPending = null; // { plan, real, naturalLen, la, lb } awaiting confirm
   let calibCancelable = false; // true when re-measuring an already-calibrated plan
   let showCalibFor = null; // plan whose stored calibration line is being shown
@@ -405,17 +406,19 @@
     reader.readAsDataURL(file);
   }
 
-  // Scale so the image fits ~90% of the stage.
+  // Scale so the image fits ~90% of the visible stage — view-aware, so a plan
+  // added while zoomed/panned around other plans still arrives at a usable size.
   function fitScale(p) {
     const r = stage.getBoundingClientRect();
-    return Math.min((r.width * 0.9) / p.img.naturalWidth, (r.height * 0.9) / p.img.naturalHeight, 1) || 1;
+    const fit = Math.min((r.width * 0.9) / p.img.naturalWidth, (r.height * 0.9) / p.img.naturalHeight, 1);
+    return fit / view.scale || 1;
   }
 
-  // Centre a plan within the stage at its current scale.
+  // Centre a plan within the visible stage at its current scale.
   function centre(p) {
     const r = stage.getBoundingClientRect();
-    p.tx = (r.width - p.img.naturalWidth * p.scale) / 2;
-    p.ty = (r.height - p.img.naturalHeight * p.scale) / 2;
+    p.tx = ((r.width - p.img.naturalWidth * p.scale * view.scale) / 2 - view.x) / view.scale;
+    p.ty = ((r.height - p.img.naturalHeight * p.scale * view.scale) / 2 - view.y) / view.scale;
   }
 
   // ---- Coordinate helpers: plan natural-pixel space <-> stage screen space.
@@ -499,7 +502,9 @@
       const a = planToScreen(calibPending.plan, calibPending.la.nx, calibPending.la.ny);
       const b = planToScreen(calibPending.plan, calibPending.lb.nx, calibPending.lb.ny);
       drawLine(a, b, `${formatLen(calibPending.real)} m`);
-    } else if (!calibrating()) {
+    } else if (calibrating()) {
+      drawCalib(); // keep the in-progress line pinned to the plan through pan/zoom
+    } else {
       // Outside measuring: optionally show a plan's stored calibration line.
       const sp = showCalibFor;
       if (sp && sp.loaded && sp.calibLine) {
@@ -677,7 +682,7 @@
       body = `That line is set to ${formatLen(calibPending.real)} m. Confirm to set the scale, or redo it.`;
     } else if (calibrating()) {
       title = `Set the scale of ${calibPlan.name}`;
-      body = "Draw a line along a known length (e.g. a labelled wall), then enter its real length. Press Esc to start the line over.";
+      body = "Draw a line along a known length (e.g. a labelled wall), then enter its real length. Zoom and drag to get in close. Press Esc to start the line over.";
     } else if (pasteReady) {
       title = "Paste your floorplan";
       body = "Press ⌘V / Ctrl+V to add the floorplan you copied. Esc to cancel.";
@@ -843,7 +848,6 @@
     t.x = e.clientX;
     t.y = e.clientY;
     if (!pinch || touches.size !== 2) return;
-    if (calibrating() && !calibPending) return; // no zooming mid-measurement (matches wheel)
     const [a, b] = [...touches.values()];
     const dist = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const mx = (a.x + b.x) / 2;
@@ -864,7 +868,9 @@
   stage.addEventListener(
     "wheel",
     (e) => {
-      if (calibrating() && !calibPending) return;
+      // Zooming mid-measurement is fine (the line is in plan coords), but the
+      // loupe's snapshot goes stale — hide it until the next pointer move.
+      if (calibrating() && !calibPending) loupe.classList.add("hidden");
       e.preventDefault();
       const r = stage.getBoundingClientRect();
       zoomView(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
@@ -1891,6 +1897,7 @@
     calibCancelable = p.unitsPerPx != null; // re-measuring → Esc can cancel it
     showCalibFor = null;
     calibPts = [];
+    calibCursor = null;
     calibSvg.innerHTML = "";
     calibSvg.classList.remove("hidden", "readonly");
     stage.classList.add("measuring");
@@ -1944,7 +1951,7 @@
     const r = stage.getBoundingClientRect();
     const sx = e.clientX - r.left;
     const sy = e.clientY - r.top;
-    // The view is frozen while measuring, but copy the live transform anyway.
+    // Copy the live transform — the view can pan/zoom mid-measurement.
     clone.style.transform = calibPlan.img.style.transform;
     const mirror = loupeContent.lastChild;
     if (mirror !== clone) mirror.innerHTML = calibSvg.innerHTML;
@@ -1969,17 +1976,62 @@
     return p;
   }
 
+  // Redraw the in-progress calibration line (first point + live preview to the
+  // cursor). Points are stored in plan coords, so this survives pan/zoom.
+  function drawCalib() {
+    if (!calibPlan || !calibPts.length) return;
+    const a = planToScreen(calibPlan, calibPts[0].nx, calibPts[0].ny);
+    const b = calibPts[1]
+      ? planToScreen(calibPlan, calibPts[1].nx, calibPts[1].ny)
+      : calibCursor && snap(a, calibCursor);
+    drawLine(a, b || null);
+  }
+
+  // A press on the calibration overlay either places a point (a click) or pans
+  // the view (a drag past a small threshold), so you can move around the plan
+  // mid-measurement without disturbing the line.
+  let calibDrag = null; // { x, y, panned } while the pointer is down
   calibSvg.addEventListener("pointerdown", (e) => {
     if (!calibrating() || calibPending) return;
-    let p = ptFromEvent(e);
-    if (calibPts.length === 1) p = snap(calibPts[0], p);
-    calibPts.push(p);
-    drawLine(calibPts[0], calibPts[1] || null);
-    if (calibPts.length === 2) finishMeasure();
+    calibDrag = { x: e.clientX, y: e.clientY, panned: false };
+    calibSvg.setPointerCapture(e.pointerId);
   });
   calibSvg.addEventListener("pointermove", (e) => {
-    if (!calibrating() || calibPending || calibPts.length !== 1) return;
-    drawLine(calibPts[0], snap(calibPts[0], ptFromEvent(e)));
+    if (!calibDrag) return;
+    if (e.pointerType === "touch" && touches.size >= 2) {
+      calibDrag.panned = true; // a pinch owns the gesture (and pans by itself)
+      return;
+    }
+    const dx = e.clientX - calibDrag.x;
+    const dy = e.clientY - calibDrag.y;
+    if (!calibDrag.panned && Math.hypot(dx, dy) <= 4) return; // still a click
+    calibDrag.panned = true;
+    view.x += dx;
+    view.y += dy;
+    calibDrag.x = e.clientX;
+    calibDrag.y = e.clientY;
+    markInteracting();
+    render();
+  });
+  calibSvg.addEventListener("pointerup", (e) => {
+    if (!calibDrag) return;
+    const wasPan = calibDrag.panned;
+    calibDrag = null;
+    try {
+      calibSvg.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    if (wasPan || !calibrating() || calibPending) return;
+    let p = ptFromEvent(e);
+    if (calibPts.length === 1) p = snap(planToScreen(calibPlan, calibPts[0].nx, calibPts[0].ny), p);
+    calibPts.push(screenToPlan(calibPlan, p.x, p.y));
+    drawCalib();
+    if (calibPts.length === 2) finishMeasure();
+  });
+  calibSvg.addEventListener("pointercancel", () => (calibDrag = null));
+  calibSvg.addEventListener("pointermove", (e) => {
+    if (!calibrating() || calibPending) return;
+    calibCursor = ptFromEvent(e);
+    if (calibPts.length === 1 && !calibDrag) drawCalib();
   });
   // After the preview redraws, so the loupe mirrors the fresh line.
   calibSvg.addEventListener("pointermove", updateLoupe);
@@ -2010,9 +2062,8 @@
   function finishMeasure() {
     loupe.classList.add("hidden");
     const p = calibPlan;
-    const [a, b] = calibPts;
-    const screenLen = Math.hypot(b.x - a.x, b.y - a.y);
-    const naturalLen = screenLen / (p.scale * view.scale);
+    const [a, b] = calibPts; // plan coords, so the length is view-independent
+    const naturalLen = Math.hypot(b.nx - a.nx, b.ny - a.ny);
     if (naturalLen < 1) {
       showHint("Line too short — draw it again.", 1800);
       resetMeasure();
@@ -2030,8 +2081,8 @@
       plan: p,
       real,
       naturalLen,
-      la: screenToPlan(p, a.x, a.y),
-      lb: screenToPlan(p, b.x, b.y),
+      la: a,
+      lb: b,
     };
     render();
   }
